@@ -1,0 +1,19 @@
+{
+	"name": "blendui",
+	"authors": [ "Ahmet Sait Koçak" ],
+	"description": "OpenGL+SDL based cross platform GUI library",
+	"copyright": "Copyright © 2018 Ahmet Sait Koçak",
+	"license": "MIT",
+
+	"dependencies": {
+		"derelict-gl3": "~>1.0.24",
+		"derelict-sdl2": "~>2.1.4",
+		"derelict-ft": "~>1.1.3",
+		"derelict-fi": "~>2.0.3",
+		"gfm:math": "~>6.2.13"
+	},
+	"targetType": "executable",
+	"targetPath": "bin",
+	"copyFiles-windows-x86" : ["lib/*.dll"],
+	"copyFiles-windows-x86_64" : ["lib64/*.dll"]
+}
