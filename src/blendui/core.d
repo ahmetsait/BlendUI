@@ -12,6 +12,14 @@ class InvalidOperationException : Exception
 	}
 }
 
+class GraphicsException : Exception
+{
+	public this(string msg, string file = __FILE__, size_t line = __LINE__, Throwable next = null) @nogc @safe pure nothrow
+	{
+		super(msg, file, line, next);
+	}
+}
+
 class SDLException : Exception
 {
 	public this(string msg, string file = __FILE__, size_t line = __LINE__, Throwable next = null) @nogc @safe pure nothrow
