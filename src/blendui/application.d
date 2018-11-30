@@ -64,15 +64,30 @@ static:
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3).enforceSDLEquals(0);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3).enforceSDLEquals(0);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE).enforceSDLEquals(0);
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG).enforceSDLEquals(0);
+
 		//Enable debug context
 		debug SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG).enforceSDLEquals(0);
 
+		//Request some actual bit depth
+		SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8).enforceSDLEquals(0);
+		SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8).enforceSDLEquals(0);
+		SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8).enforceSDLEquals(0);
+		SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 0).enforceSDLEquals(0);
+		SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1).enforceSDLEquals(0);
+		SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 16).enforceSDLEquals(0);
+		SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 1).enforceSDLEquals(0);
+
+		//TODO: Add multisample support
 
 		//Enable drag-drop
 		SDL_EventState(SDL_DROPTEXT, SDL_ENABLE);
 		SDL_EventState(SDL_DROPFILE, SDL_ENABLE);
 		SDL_EventState(SDL_DROPBEGIN, SDL_ENABLE);
 		SDL_EventState(SDL_DROPCOMPLETE, SDL_ENABLE);
+
+		//Disable text input by default
+		SDL_StopTextInput();
 		
 		debug stderr.writeln("Initializing done.");
 	}
@@ -134,6 +149,15 @@ static:
 				for (int i = 0; i < extensionCount; i++)
 					_extensions.put(glGetStringi(GL_EXTENSIONS, i).fromStringz().idup());
 			}
+			glEnable(GL_DEBUG_OUTPUT);
+			glDisable(GL_CULL_FACE);
+			glEnable(GL_BLEND);
+			glEnable(GL_LINE_SMOOTH);
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+
+			//Disable vsync
+			SDL_GL_SetSwapInterval(0).enforceSDLEquals(0, "Could not set swap interval (VSync).");
 		}
 
 		return glContext;
