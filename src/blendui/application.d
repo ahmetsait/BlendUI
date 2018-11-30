@@ -18,15 +18,15 @@ import blendui.util;
 
 public static class Application
 {
+static:
 	//Common DPI values: 96 (1.00), 120 (1.25), 144 (1.50), 168 (1.75), 192 (2.00)
 	public immutable float designDPI = 120f;
 	public float renderDPI = designDPI;
 
-	private static bool quitting;
+	private bool running = false;
 	
 	private HashSet!(Window) windows;
 
-	public static void initialize()
 	public void registerWindow(Window window)
 	{
 		windows.put(window);
@@ -37,6 +37,7 @@ public static class Application
 		windows.remove(window);
 	}
 
+	public void initialize()
 	{
 		debug writeln("Initializing...");
 
@@ -71,9 +72,9 @@ public static class Application
 		debug stderr.writeln("Initializing done.");
 	}
 
-	private static SDL_GLContext glContext = null;
+	private SDL_GLContext glContext = null;
 
-	public static SDL_GLContext getSharedGLContext(SDL_Window* window)
+	public SDL_GLContext getSharedGLContext(SDL_Window* window)
 	{
 		if (window == null)
 			return glContext;
@@ -88,10 +89,10 @@ public static class Application
 		return glContext;
 	}
 
-	public static void run(Window window = null)
+	public void run(Window mainWindow = null)
 	{
-		if (window !is null)
-			window.show();
+		if (mainWindow !is null)
+			mainWindow.show();
 
 		bool exiting = false;
 		SDL_Event event;
@@ -111,7 +112,7 @@ public static class Application
 		}
 	}
 
-	public static void exit()
+	public void exit()
 	{
 		SDL_Event event = void;
 		event.type = SDL_QUIT;
@@ -119,7 +120,7 @@ public static class Application
 		SDL_PushEvent(&event);
 	}
 
-	public static void terminate()
+	public void terminate()
 	{
 		debug stderr.write("Terminating... ");
 		//Quit SDL subsystems
