@@ -18,7 +18,9 @@ import blendui.util;
 
 public static class Application
 {
-	public static float uiScalingFactor = 1.0f;
+	//Common DPI values: 96 (1.00), 120 (1.25), 144 (1.50), 168 (1.75), 192 (2.00)
+	public immutable float designDPI = 120f;
+	public float renderDPI = designDPI;
 
 	private static bool quitting;
 	
