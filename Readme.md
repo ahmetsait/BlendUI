@@ -10,3 +10,4 @@ BlendUI
 	- [FreeType](https://www.freetype.org)
 - [DerelictFI](https://github.com/DerelictOrg/DerelictFI)
 	- [FreeImage](http://freeimage.sourceforge.net)
+- [EMSI Containers](https://github.com/dlang-community/containers)
