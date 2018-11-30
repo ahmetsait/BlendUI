@@ -1,5 +1,5 @@
-import std.stdio;
-import std.format;
+import std.stdio : write, writeln, stderr;
+import std.format : format;
 
 import derelict.sdl2.sdl;
 import derelict.opengl3.gl3;
@@ -19,11 +19,10 @@ else
 int main(string[] args)
 {
 	Application.initialize();
-
-	Window window = new Window("Blend UI Test", 1600, 900);
+	Window window = new Window("Blend UI Test", 800, 900);
 
 	Application.run(window);
-	
+
 	Application.terminate();
 
 	return 0;

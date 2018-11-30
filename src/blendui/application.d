@@ -226,6 +226,8 @@ static:
 
 	public void exit()
 	{
+		foreach(Window window; windows)
+			window.close();
 		SDL_Event event = void;
 		event.type = SDL_QUIT;
 		event.quit.timestamp = SDL_GetTicks();
