@@ -110,6 +110,19 @@ unittest
 	t.onCountingChanged();
 }
 
+public bool tryGetValue(T : V[K], V, K)(T aa, K key, ref V value)
+{
+	foreach(item; aa.byKey)
+	{
+		if (item == key)
+		{
+			value = aa[key];
+			return true;
+		}
+	}
+	return false;
+}
+
 ///Returns whether a value exists in the given iterable range.
 public bool contains(Range, V)(Range haystack, V needle) if(isIterable!Range)
 {
