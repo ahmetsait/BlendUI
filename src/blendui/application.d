@@ -8,6 +8,8 @@ import std.string : toStringz, fromStringz;
 import derelict.sdl2.sdl;
 import derelict.opengl3.gl3;
 
+import containers : HashSet;
+
 import blendui.core;
 import blendui.events;
 import blendui.math;
@@ -19,8 +21,20 @@ public static class Application
 	public static float uiScalingFactor = 1.0f;
 
 	private static bool quitting;
+	
+	private HashSet!(Window) windows;
 
 	public static void initialize()
+	public void registerWindow(Window window)
+	{
+		windows.put(window);
+	}
+	
+	public void unregisterWindow(Window window)
+	{
+		windows.remove(window);
+	}
+
 	{
 		debug writeln("Initializing...");
 

@@ -351,6 +351,7 @@ public class Window : ContainerWidget, IWindow, IEventReceiver, IDisposable
 		window.enforceSDLNotNull("Could not create SDL window");
 
 		Application.getSharedGLContext(window);
+		Application.registerWindow(this);
 	}
 
 	private bool firstTimeShowing = true;

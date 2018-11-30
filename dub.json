@@ -10,7 +10,8 @@
 		"derelict-sdl2": "~>2.1.4",
 		"derelict-ft": "~>1.1.3",
 		"derelict-fi": "~>2.0.3",
-		"gfm:math": "~>6.2.13"
+		"gfm:math": "~>6.2.13",
+		"emsi_containers":"~>0.7.0"
 	},
 	"targetType": "executable",
 	"targetPath": "bin",
