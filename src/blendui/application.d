@@ -168,18 +168,56 @@ static:
 		if (mainWindow !is null)
 			mainWindow.show();
 
-		bool exiting = false;
+		running = true;
 		SDL_Event event;
-		while (!exiting)
+		while (running)
 		{
 			if (SDL_WaitEvent(&event))
 			{
 				switch(event.type)
 				{
 					case SDL_QUIT:
-						exiting = true;
+						bool allClosed = true;
+						foreach(Window window; windows)
+						{
+							if (!window.disposed)
+							{
+								allClosed = false;
+								break;
+							}
+						}
+						if (allClosed)
+							running = false;
+						break;
+					case SDL_WINDOWEVENT:
+					case SDL_KEYDOWN:
+					case SDL_KEYUP:
+					case SDL_TEXTEDITING:
+					case SDL_TEXTINPUT:
+					case SDL_MOUSEMOTION:
+					case SDL_MOUSEBUTTONDOWN:
+					case SDL_MOUSEBUTTONUP:
+					case SDL_MOUSEWHEEL:
+						//These windowIDs have the same offset
+						foreach(Window window; windows)
+						{
+							if (window.getSDLWindowID() == event.window.windowID)
+								window.handleEvent(event);
+						}
+						break;
+					case SDL_DROPBEGIN:
+					case SDL_DROPTEXT:
+					case SDL_DROPFILE:
+					case SDL_DROPCOMPLETE:
+						//windowID of SDL_DropEvent has a different offset
+						foreach(Window window; windows)
+						{
+							if (window.getSDLWindowID() == event.drop.windowID)
+								window.handleEvent(event);
+						}
 						break;
 					default:
+						debug stderr.writeln(format!"Event not sent: %d"(event.type));
 						break;
 				}
 			}
