@@ -46,6 +46,8 @@ static:
 		debug stderr.writeln("Done.");
 		debug stderr.write("Loading OpenGL library... ");
 		DerelictGL3.load();
+		_openglVersionMajor = 1;
+		_openglVersionMinor = 1;
 		debug stderr.writeln("Done.");
 
 		SDL_SetHint(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, "1").enforceSDLEquals(1);			//It's a general purpose GUI not a game
@@ -56,12 +58,15 @@ static:
 		
 		//Initialize SDL
 		SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER).enforceSDLEquals(0,
-			format!"SDL could not be initialized! SDL_Error: %s"(SDL_GetError()));
+			format!"SDL could not be initialized. SDL_Error: %s"(SDL_GetError()));
 		
 		//Use OpenGL 3.3 core
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3).enforceSDLEquals(0);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3).enforceSDLEquals(0);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE).enforceSDLEquals(0);
+		//Enable debug context
+		debug SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG).enforceSDLEquals(0);
+
 
 		//Enable drag-drop
 		SDL_EventState(SDL_DROPTEXT, SDL_ENABLE);
@@ -70,6 +75,22 @@ static:
 		SDL_EventState(SDL_DROPCOMPLETE, SDL_ENABLE);
 		
 		debug stderr.writeln("Initializing done.");
+	}
+
+	private int _openglVersionMajor, _openglVersionMinor;
+	public int openglVersionMajor() @property
+	{
+		return _openglVersionMajor;
+	}
+	public int openglVersionMinor() @property
+	{
+		return _openglVersionMinor;
+	}
+
+	private HashSet!string _extensions;
+	public ref const(HashSet!string) extensions() @property
+	{
+		return _extensions;
 	}
 
 	private SDL_GLContext glContext = null;
@@ -83,7 +104,36 @@ static:
 		{
 			glContext = SDL_GL_CreateContext(window);
 			glContext.enforceSDLNotNull("OpenGL context could not be created");
+			debug stderr.write("Loading OpenGL library... ");
 			DerelictGL3.reload(GLVersion.GL33, GLVersion.GL33);
+			debug stderr.writeln("Done.");
+			debug
+			{
+				//Diagnostics
+				stderr.writeln("========================================");
+				stderr.writeln("Renderer: ", glGetString(GL_RENDERER).fromStringz());
+				stderr.writeln("OpenGL Version: ", glGetString(GL_VERSION).fromStringz());
+				stderr.writeln("GLSL Version: ", glGetString(GL_SHADING_LANGUAGE_VERSION).fromStringz());
+				stderr.writeln("Vendor: ", glGetString(GL_VENDOR).fromStringz());
+				stderr.writeln("----------------------------------------");
+			}
+			{
+				//Determine OpenGL version
+				string ver = glGetString(GL_VERSION).fromStringz().idup();
+				int i = ver.indexOf('.');
+				string verMajor = ver[0 .. i];
+				_openglVersionMajor = verMajor.to!int();
+				ver = ver[i + 1 .. $];
+				string verMinor = ver[0 .. ver.indexOf('.')];
+				_openglVersionMinor = verMinor.to!int();
+			}
+			{
+				//Load extension list
+				int extensionCount;
+				glGetIntegerv(GL_NUM_EXTENSIONS, &extensionCount);
+				for (int i = 0; i < extensionCount; i++)
+					_extensions.put(glGetStringi(GL_EXTENSIONS, i).fromStringz().idup());
+			}
 		}
 
 		return glContext;
