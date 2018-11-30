@@ -1,7 +1,9 @@
 ﻿module blendui.application;
 
-import std.stdio;
-import std.format;
+import std.stdio : write, writef, writeln, writefln, stderr;
+import std.conv : to;
+import std.format : format;
+import std.string : toStringz, fromStringz;
 
 import derelict.sdl2.sdl;
 import derelict.opengl3.gl3;
@@ -22,12 +24,12 @@ public static class Application
 	{
 		debug writeln("Initializing...");
 
-		debug write("Loading SDL2 library... ");
+		debug stderr.write("Loading SDL2 library... ");
 		DerelictSDL2.load();
-		debug writeln("Done.");
-		debug write("Loading OpenGL library... ");
+		debug stderr.writeln("Done.");
+		debug stderr.write("Loading OpenGL library... ");
 		DerelictGL3.load();
-		debug writeln("Done.");
+		debug stderr.writeln("Done.");
 
 		SDL_SetHint(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, "1").enforceSDLEquals(1);			//It's a general purpose GUI not a game
 		SDL_SetHint(SDL_HINT_TIMER_RESOLUTION, "0").enforceSDLEquals(1);				//Do not set timer resolution to save CPU cycles
@@ -49,8 +51,8 @@ public static class Application
 		SDL_EventState(SDL_DROPFILE, SDL_ENABLE);
 		SDL_EventState(SDL_DROPBEGIN, SDL_ENABLE);
 		SDL_EventState(SDL_DROPCOMPLETE, SDL_ENABLE);
-	
-		debug writeln("Initializing done.");
+		
+		debug stderr.writeln("Initializing done.");
 	}
 
 	private static SDL_GLContext glContext = null;
@@ -103,9 +105,9 @@ public static class Application
 
 	public static void terminate()
 	{
-		debug write("Terminating... ");
+		debug stderr.write("Terminating... ");
 		//Quit SDL subsystems
 		SDL_Quit();
-		debug writeln("Done.");
+		debug stderr.writeln("Done.");
 	}
 }
