@@ -52,24 +52,28 @@ class SDLException : Exception
 	}
 }
 
-void enforceSDLEquals(int returnCode, int success, string message = null)
+int enforceSDLEquals(int returnCode, int success, string message = null)
 {
 	enforce!SDLException(returnCode == success, (message == null ? "SDL Error: " : message ~ " -> SDL Error: ") ~ fromStringz(SDL_GetError()).idup);
+	return returnCode;
 }
 
-void enforceSDLNotEquals(int returnCode, int success, string message = null)
+int enforceSDLNotEquals(int returnCode, int success, string message = null)
 {
 	enforce!SDLException(returnCode != success, (message == null ? "SDL Error: " : message ~ " -> SDL Error: ") ~ fromStringz(SDL_GetError()).idup);
+	return returnCode;
 }
 
-void enforceSDLNotNegative(int returnCode, string message = null)
+int enforceSDLNotNegative(int returnCode, string message = null)
 {
 	enforce!SDLException(returnCode >= 0, (message == null ? "SDL Error: " : message ~ " -> SDL Error: ") ~ fromStringz(SDL_GetError()).idup);
+	return returnCode;
 }
 
-void enforceSDLNotNull(void* returnValue, string message = null)
+T* enforceSDLNotNull(T)(T* returnValue, string message = null)
 {
 	enforce!SDLException(returnValue != null, (message == null ? "SDL Error: " : message ~ " -> SDL Error: ") ~ fromStringz(SDL_GetError()).idup);
+	return returnValue;
 }
 
 interface IDisposable
