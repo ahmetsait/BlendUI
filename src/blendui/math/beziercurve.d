@@ -9,7 +9,10 @@ module blendui.math.beziercurve;
 
 import std.range : isInputRange, isInfinite, ElementType;
 import std.traits : isFloatingPoint;
+
 import gfm.math.vector : vec2;
+
+import blendui.core;
 import blendui.math.mathhelper;
 
 ///Represents a bezier curve with as many points as you want.
@@ -32,7 +35,7 @@ public struct BezierCurve(T) if(isFloatingPoint!T)
 	public this(U)(U points) if(isInputRange!U && !isInfinite!U && is(ElementType!U : vec2!T))
     {
         if (points is null)
-            throw new ArgumentNullException("points", "Must point to a valid range of vec2!T structures.");
+			throw new ArgumentNullException(points.stringof, "Must point to a valid range of vec2!T structures.");
 
 		for(; !points.empty; points.popFront())
         	this.points ~= points.front;
@@ -45,7 +48,7 @@ public struct BezierCurve(T) if(isFloatingPoint!T)
     public this(vec2!T[] points ...)
     {
         if (points is null)
-			throw new ArgumentNullException("points", "Must point to a valid range of vec2!T structures.");
+			throw new ArgumentNullException(points.stringof, "Must point to a valid range of vec2!T structures.");
 
 		this.points = points.dup;
         this.parallel = 0.0f;
@@ -58,7 +61,7 @@ public struct BezierCurve(T) if(isFloatingPoint!T)
     public this(T parallel, vec2!T[] points ...)
     {
         if (points is null)
-			throw new ArgumentNullException("points", "Must point to a valid range of vec2!T structures.");
+			throw new ArgumentNullException(points.stringof, "Must point to a valid range of vec2!T structures.");
 
 		this.points = points.dup;
         this.parallel = parallel;
@@ -71,7 +74,7 @@ public struct BezierCurve(T) if(isFloatingPoint!T)
 	public this(U)(T parallel, U points) if(isInputRange!U && !isInfinite!U && is(ElementType!U : vec2!T))
     {
         if (points is null)
-			throw new ArgumentNullException("points", "Must point to a valid range of vec2!T structures.");
+			throw new ArgumentNullException(points.stringof, "Must point to a valid range of vec2!T structures.");
 
 		for(; !points.empty; points.popFront())
 			this.points ~= points.front;

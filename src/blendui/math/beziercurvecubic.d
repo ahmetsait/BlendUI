@@ -8,7 +8,10 @@
 module blendui.math.beziercurvecubic;
 
 import std.traits : isFloatingPoint;
+
 import gfm.math.vector : vec2;
+
+import blendui.core;
 
 ///Represents a cubic bezier curve with two anchor and two control points.
 public struct BezierCurveCubic(T) if(isFloatingPoint!T)

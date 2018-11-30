@@ -8,7 +8,10 @@
 module blendui.math.beziercurvequadric;
 
 import std.traits : isFloatingPoint;
+
 import gfm.math.vector : vec2;
+
+import blendui.core;
 
 ///Represents a quadric bezier curve with two anchor and one control point.
 public struct BezierCurveQuadric(T) if(isFloatingPoint!T)
