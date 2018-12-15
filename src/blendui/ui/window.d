@@ -8,7 +8,7 @@ import std.typecons : Nullable;
 import std.exception : ErrnoException;
 
 import derelict.sdl2.sdl;
-import derelict.opengl3.gl3;
+import blendui.gl.gl;
 
 import gfm.math.vector : vec4f;
 

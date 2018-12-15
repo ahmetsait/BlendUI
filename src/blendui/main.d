@@ -2,7 +2,7 @@ import std.stdio : write, writeln, stderr;
 import std.format : format;
 
 import derelict.sdl2.sdl;
-import derelict.opengl3.gl3;
+import blendui.gl.gl;
 
 import blendui.application;
 import blendui.core;
@@ -19,9 +19,11 @@ else
 int main(string[] args)
 {
 	Application.initialize();
-	Window window = new Window("Blend UI Test", 800, 900);
+	Window window = new Window("Blend UI Test", 640, 480);
 
-	Application.run(window);
+	window.show();
+
+	Application.run();
 
 	Application.terminate();
 

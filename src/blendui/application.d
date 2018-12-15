@@ -6,7 +6,8 @@ import std.format : format;
 import std.string : toStringz, fromStringz;
 
 import derelict.sdl2.sdl;
-import derelict.opengl3.gl3;
+import blendui.gl.all;
+import blendui.gl.loader;
 
 import containers : HashSet;
 
@@ -43,12 +44,7 @@ static:
 
 		debug stderr.write("Loading SDL2 library... ");
 		DerelictSDL2.load();
-		debug stderr.writeln("Done.");
-		debug stderr.write("Loading OpenGL library... ");
-		DerelictGL3.load();
-		_openglVersionMajor = 1;
-		_openglVersionMinor = 1;
-		debug stderr.writeln("Done.");
+		debug stderr.writeln("Done");
 
 		SDL_SetHint(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, "1").enforceSDLEquals(1);			//It's a general purpose GUI not a game
 		SDL_SetHint(SDL_HINT_TIMER_RESOLUTION, "0").enforceSDLEquals(1);				//Do not set timer resolution to save CPU cycles
@@ -92,15 +88,7 @@ static:
 		debug stderr.writeln("Initializing done.");
 	}
 
-	private int _openglVersionMajor, _openglVersionMinor;
-	public int openglVersionMajor() @property
 	{
-		return _openglVersionMajor;
-	}
-	public int openglVersionMinor() @property
-	{
-		return _openglVersionMinor;
-	}
 
 	private HashSet!string _extensions;
 	public ref const(HashSet!string) extensions() @property
@@ -120,8 +108,10 @@ static:
 			glContext = SDL_GL_CreateContext(window);
 			glContext.enforceSDLNotNull("OpenGL context could not be created");
 			debug stderr.write("Loading OpenGL library... ");
-			DerelictGL3.reload(GLVersion.GL33, GLVersion.GL33);
-			debug stderr.writeln("Done.");
+			if (!loadGL())
+				throw new GraphicsException("Failed to load OpenGL 3.3");
+			debug stderr.writeln("Done");
+
 			debug
 			{
 				//Diagnostics

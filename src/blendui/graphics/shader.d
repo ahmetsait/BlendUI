@@ -6,7 +6,7 @@ import std.format : format;
 import std.conv : to;
 
 import derelict.sdl2.sdl;
-import derelict.opengl3.gl3;
+import blendui.gl.gl;
 
 import gfm.math.vector;
 import gfm.math.matrix;
