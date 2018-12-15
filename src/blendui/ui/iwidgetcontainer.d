@@ -3,7 +3,7 @@
 import blendui.ui;
 import blendui.util;
 
-public abstract class IWidgetContainer
+public interface IWidgetContainer
 {
 	//TODO
 }

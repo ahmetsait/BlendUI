@@ -19,7 +19,7 @@ import blendui.ui;
 import blendui.util;
 import blendui.application;
 
-enum WindowStartPosition : ubyte
+public enum WindowStartPosition : ubyte
 {
 	undefined		= 0,
 	centerScreen	= 1,
@@ -27,7 +27,7 @@ enum WindowStartPosition : ubyte
 	manual			= 3,
 }
 
-interface IWindow
+public interface IWindow
 {
 	//TODO
 }
@@ -42,11 +42,13 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 	}
 
 	private bool systemWindowInfoExist = false;
-	private SDL_SysWMinfo systemWindowInfo;
 	public SDL_SysWMinfo getSystemWindowInfo()
 	{
+		static SDL_SysWMinfo systemWindowInfo;
+
 		if (!systemWindowInfoExist)
 		{
+			SDL_VERSION(&systemWindowInfo.version_);
 			SDL_GetWindowWMInfo(sdlWindow, &systemWindowInfo)
 				.enforceSDLEquals(SDL_TRUE, "Could not retrieve system window info.");
 			systemWindowInfoExist = true;
@@ -114,6 +116,13 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 			_bounds.location = value;
 			SDL_SetWindowPosition(sdlWindow, _bounds.x, _bounds.y);
 		}
+	}
+
+	public Point!int getLocationNormalized()
+	{
+		int x, y;
+		SDL_GetWindowPosition(sdlWindow, &x, &y);
+		return Point!int(x, y);
 	}
 
 	public Event!Window sizeChanged;
@@ -329,15 +338,23 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 	}
 	public void owner(Window value) @property
 	{
-		import core.sys.windows.windows : SetWindowLongPtr, GWLP_HWNDPARENT, LONG_PTR, GetLastError;
+		auto systemWindowInfo = this.getSystemWindowInfo();
 		switch (systemWindowInfo.subsystem)
 		{
-			case SDL_SYSWM_WINDOWS:
-				auto ownerHandle = cast(LONG_PTR)value.getSystemWindowInfo().info.win.window;
-				auto result = SetWindowLongPtr(systemWindowInfo.info.win.window, GWLP_HWNDPARENT, ownerHandle);
-				if (result == 0)
-					throw new ErrnoException("Could not adjust window owner.", GetLastError());
+			version(Windows)
+			{
+				import core.sys.windows.windows : SetWindowLongPtr, GWLP_HWNDPARENT, LONG_PTR, GetLastError, SetLastError;
+				case SDL_SYSWM_WINDOWS:
+					//FIXME: Check for parenting cycle
+					//FIXME: Register owned windows in owner and make them close owneds
+					auto ownerHandle = cast(LONG_PTR)value.getSystemWindowInfo().info.win.window;
+					SetLastError(0);
+					SetWindowLongPtr(systemWindowInfo.info.win.window, GWLP_HWNDPARENT, ownerHandle);
+					immutable error = GetLastError();
+					if (error != 0)
+						throw new ErrnoException("Could not adjust window owner.", error);
 				break;
+			}
 			case SDL_SYSWM_X11:
 				SDL_SetWindowModalFor(sdlWindow, value.getSDLWindow()).enforceSDLEquals(0, "Could not adjust window owner.");
 				break;
@@ -475,7 +492,7 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 						onHitTest();
 						break;
 					default:
-						writeln(format!"Unhandled window event: %d"(event.window.event));
+						debug stderr.writefln!"Unhandled window event: 0x%X"(event.window.event);
 						break;
 				}
 				break;
@@ -526,8 +543,11 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 	//region Functions
 	public Event!Window shownFirstTime;
 	private bool firstTimeShowing = true;
-	public void show()
+	public void show(Window owner = null)
 	{
+		if (owner !is null)
+			this.owner = owner;
+
 		if (firstTimeShowing)
 		{
 			int x, y;
