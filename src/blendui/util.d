@@ -1,8 +1,10 @@
 module blendui.util;
 
 import std.format : format;
-import std.range : isInfinite, isInputRange, isRandomAccessRange;
-import std.traits : isSomeString, isIterable, isCallable;
+import std.range;
+import std.traits;
+
+import std.string : indexOf, lastIndexOf;
 
 string getStackTrace()
 {
@@ -130,6 +132,7 @@ unittest
 	assert(toPascalCase("ﬄ") == "FFL"); //FIXME: Should be Ffl
 }
 
+enum bool isIterableReverse(T) = is(typeof({ foreach_reverse (elem; T.init) {} }));
 
 public bool tryGetValue(T : V[K], V, K)(T aa, K key, ref V value)
 {
@@ -144,8 +147,8 @@ public bool tryGetValue(T : V[K], V, K)(T aa, K key, ref V value)
 	return false;
 }
 
-///Returns whether a value exists in the given iterable range.
-public bool contains(Range, V)(Range haystack, V needle) if(isIterable!Range)
+///Returns index of the first element that is equal to the value in the given iterable range.
+public bool contains(Range, E)(Range haystack, E needle) if(isIterable!Range && is(Unqual!E : Unqual!(ElementType!Range)))
 {
 	foreach(element; haystack)
 		if (element == needle)
@@ -154,7 +157,7 @@ public bool contains(Range, V)(Range haystack, V needle) if(isIterable!Range)
 }
 
 ///Returns index of the first element that is equal to the value in the given iterable range.
-public sizediff_t indexOf(Range, V)(Range haystack, V needle) if(isIterable!Range)
+public sizediff_t indexOf(Range, E)(Range haystack, E needle) if(isIterable!Range && is(Unqual!E : Unqual!(ElementType!Range)))
 {
 	sizediff_t i = 0;
 	foreach(element; haystack)
@@ -165,17 +168,17 @@ public sizediff_t indexOf(Range, V)(Range haystack, V needle) if(isIterable!Rang
 	return -1;
 }
 
-///Returns index of the last element that is equal to the value in the given finite iterable range.
-public sizediff_t lastIndexOf(Range, V)(Range haystack, V needle) if(isIterable!Range && !isInfinite!Range)
+///Returns index of the last element that is equal to the value in the given iterable range.
+public sizediff_t lastIndexOf(Range, E)(Range haystack, E needle) if(is(Unqual!(ElementType!Range) == Unqual!E) && (isIterableReverse!Range || isIterable!Range))
 {
-	static if(isRandomAccessRange!Range)
+	static if(isIterableReverse!Range)
 	{
 		foreach_reverse(i, element; haystack)
 			if (element == needle)
 				return i;
 		return -1;
 	}
-	else
+	else static if(isIterable!Range)
 	{
 		sizediff_t found = -1, i = 0;
 		foreach(element; haystack)
@@ -186,6 +189,8 @@ public sizediff_t lastIndexOf(Range, V)(Range haystack, V needle) if(isIterable!
 		}
 		return found;
 	}
+	else
+		static assert(0, "haystack is not iterable");
 }
 
 unittest

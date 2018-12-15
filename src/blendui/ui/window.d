@@ -711,9 +711,9 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 
 	protected void onFocusOffered()
 	{
-		//FIXME: I have no idea when is this even called need to learn
-		debug writeln("SDL_WINDOWEVENT_TAKE_FOCUS");
+		//debug stderr.writeln("SDL_WINDOWEVENT_TAKE_FOCUS");
 		SDL_SetWindowInputFocus(sdlWindow).enforceSDLEquals(0);
+		//It seems like it doesn't even matter
 	}
 
 	public Event!Window hitTest;

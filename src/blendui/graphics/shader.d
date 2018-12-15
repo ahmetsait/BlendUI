@@ -46,10 +46,10 @@ public struct Shader
 		glGetProgramiv(prog, GL_LINK_STATUS, &success);
 		if (success == 0)
 		{
-			int infoLen;
+			GLsizei infoLen;
 			glGetShaderiv(prog, GL_INFO_LOG_LENGTH, &infoLen);
 			char[] error = new char[infoLen];
-			glGetShaderInfoLog(prog, error.length, &infoLen, error.ptr);
+			glGetShaderInfoLog(prog, infoLen, &infoLen, error.ptr);
 			throw new GraphicsException(("Failed to link program: " ~ error[0 .. infoLen]).idup);
 		}
 		id = prog;
@@ -59,7 +59,8 @@ public struct Shader
 	{
 		uint shader = glCreateShader(type);
 		auto src = source.toStringz();
-		int len = source.length;
+		assert(source.length > int.max);
+		int len = cast(int)source.length;
 		glShaderSource(shader, 1, &src, &len);
 		glCompileShader(shader);
 
@@ -70,7 +71,7 @@ public struct Shader
 			int infoLen;
 			glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLen);
 			char[] error = new char[infoLen];
-			glGetShaderInfoLog(shader, error.length, &infoLen, error.ptr);
+			glGetShaderInfoLog(shader, infoLen, &infoLen, error.ptr);
 			throw new GraphicsException(("Failed to compile shader: " ~ error[0 .. infoLen]).idup);
 		}
 		return shader;

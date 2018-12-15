@@ -1,6 +1,9 @@
 module blendui.events;
 
 import std.stdio : writeln, writefln;
+import core.stdc.stdlib : alloca;
+import std.algorithm.mutation : remove;
+
 import blendui.core;
 import blendui.util;
 
@@ -9,9 +12,7 @@ import blendui.util;
 ///use anything other than class/interface member functions will likely crash.
 public struct Event(T...)
 {
-	import core.stdc.stdlib : alloca;
 	import std.signals : rt_attachDisposeEvent, rt_detachDisposeEvent, _d_toObject;
-	import std.algorithm.mutation : remove;
 
 	public alias listener_t = void delegate(T);
 
@@ -94,7 +95,7 @@ public struct Event(T...)
 	private void unhook(Object o)
 	{
 		int removed = 0;
-		for(int i = listeners.length - 1; i >= 0; i--)
+		for(ptrdiff_t i = listeners.length - 1; i >= 0; i--)
 		{
 			if(_d_toObject(listeners[i].ptr) is o)
 			{
@@ -121,9 +122,6 @@ public struct Event(T...)
 ///unsubscribe from destroyed objects. Faster. Use with caution.
 public struct EventUnsafe(T...)
 {
-	import core.stdc.stdlib : alloca;
-	import std.algorithm.mutation : remove;
-	
 	public alias listener_t = void delegate(T);
 	
 	private listener_t[] listeners;
@@ -242,7 +240,9 @@ unittest
 	assert(capsule.call == 4);
 	assert(capsule.strList[0] == "Event fired!");
 	assert(capsule.strList[1] == "Object\tSome int: 2147483647");
-	assert(capsule.strList[2] == "Sqrt(-2147483648) = -nan");
+	assert(capsule.strList[2] == "Sqrt(-2147483648) = -nan" ||
+		capsule.strList[2] == "Sqrt(-2147483648) = nan");
+	//TODO: Figure out if -nan is a thing and report bug if not
 	
 	Event!(Object, TestEventArgs) event2;
 	TestEventArgs tea = TestEventArgs("I could be writing C#", double.epsilon);

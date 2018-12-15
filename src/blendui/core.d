@@ -4,6 +4,14 @@ import std.string : fromStringz, format;
 import std.exception : enforce;
 import derelict.sdl2.sdl : SDL_GetError;
 
+class ApplicationException : Exception
+{
+	public this(string msg, string file = __FILE__, size_t line = __LINE__, Throwable next = null) @nogc @safe pure nothrow
+	{
+		super(msg, file, line, next);
+	}
+}
+
 class InvalidOperationException : Exception
 {
 	public this(string msg, string file = __FILE__, size_t line = __LINE__, Throwable next = null) @nogc @safe pure nothrow
