@@ -90,10 +90,6 @@ static:
 
 	{
 
-	private HashSet!string _extensions;
-	public ref const(HashSet!string) extensions() @property
-	{
-		return _extensions;
 	}
 
 	private SDL_GLContext glContext = null;
@@ -121,23 +117,6 @@ static:
 				stderr.writeln("GLSL Version: ", glGetString(GL_SHADING_LANGUAGE_VERSION).fromStringz());
 				stderr.writeln("Vendor: ", glGetString(GL_VENDOR).fromStringz());
 				stderr.writeln("----------------------------------------");
-			}
-			{
-				//Determine OpenGL version
-				string ver = glGetString(GL_VERSION).fromStringz().idup();
-				int i = ver.indexOf('.');
-				string verMajor = ver[0 .. i];
-				_openglVersionMajor = verMajor.to!int();
-				ver = ver[i + 1 .. $];
-				string verMinor = ver[0 .. ver.indexOf('.')];
-				_openglVersionMinor = verMinor.to!int();
-			}
-			{
-				//Load extension list
-				int extensionCount;
-				glGetIntegerv(GL_NUM_EXTENSIONS, &extensionCount);
-				for (int i = 0; i < extensionCount; i++)
-					_extensions.put(glGetStringi(GL_EXTENSIONS, i).fromStringz().idup());
 			}
 			glEnable(GL_DEBUG_OUTPUT);
 			glDisable(GL_CULL_FACE);
