@@ -4,6 +4,26 @@ import std.format : format;
 import std.range : isInfinite, isInputRange, isRandomAccessRange;
 import std.traits : isSomeString, isIterable, isCallable;
 
+string getStackTrace()
+{
+	import core.runtime;
+	
+	version(Posix)
+	{
+		// druntime cuts out the first few functions on the trace as they are internal
+		// so we'll make some dummy functions here so our actual info doesn't get cut
+		Throwable.TraceInfo f5() { return defaultTraceHandler(); }
+		Throwable.TraceInfo f4() { return f5(); }
+		Throwable.TraceInfo f3() { return f4(); }
+		Throwable.TraceInfo f2() { return f3(); }
+		auto stuff = f2();
+	}
+	else
+		auto stuff = defaultTraceHandler();
+	
+	return stuff.toString();
+}
+
 ///Mixin template for creating accessors (get/set)
 ///Creates a private variable prefixed with an underscore.
 template Field(T, string name, bool readOnly = false)
@@ -49,6 +69,34 @@ template Property(T, string name, bool readOnly = false, bool onChangedMethod = 
 		mixin(format!(onChangedCode)(name.toPascalCase, name));
 }
 
+unittest
+{
+	class TestCapsule
+	{
+		mixin Field!(int, "counter");
+		mixin Property!(bool, "counting", false, true);
+		mixin Property!(float[], "percentageList", true);
+		
+		public this()
+		{
+			_percentageList = [0.2f, 0.8f];
+		}
+		
+		public void countingChangedHandler(Object sender)
+		{
+			assert(counting == true);
+		}
+	}
+	TestCapsule t = new TestCapsule();
+	t.counter = 8;
+	static assert(!__traits(compiles, t.percentageList = []));
+	const(float[]) pList = t.percentageList;
+	assert(pList == [0.2f, 0.8f]);
+	t.countingChanged += &t.countingChangedHandler;
+	t.counting = true;
+	t.onCountingChanged();
+}
+
 string toPascalCase(S)(S str) if(isSomeString!S)
 {
 	import std.array : array;
@@ -82,33 +130,6 @@ unittest
 	assert(toPascalCase("ﬄ") == "FFL"); //FIXME: Should be Ffl
 }
 
-unittest
-{
-	class TestCapsule
-	{
-		mixin Field!(int, "counter");
-		mixin Property!(bool, "counting", false, true);
-		mixin Property!(float[], "percentageList", true);
-
-		public this()
-		{
-			_percentageList = [0.2f, 0.8f];
-		}
-
-		public void countingChangedHandler(Object sender)
-		{
-			assert(counting == true);
-		}
-	}
-	TestCapsule t = new TestCapsule();
-	t.counter = 8;
-	static assert(!__traits(compiles, t.percentageList = []));
-	const(float[]) pList = t.percentageList;
-	assert(pList == [0.2f, 0.8f]);
-	t.countingChanged += &t.countingChangedHandler;
-	t.counting = true;
-	t.onCountingChanged();
-}
 
 public bool tryGetValue(T : V[K], V, K)(T aa, K key, ref V value)
 {

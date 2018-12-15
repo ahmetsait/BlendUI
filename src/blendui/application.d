@@ -4,12 +4,14 @@ import std.stdio : write, writef, writeln, writefln, stderr;
 import std.conv : to;
 import std.format : format;
 import std.string : toStringz, fromStringz;
+import std.algorithm : canFind, countUntil, map;
+import std.array : split, array;
 
 import derelict.sdl2.sdl;
 import blendui.gl.all;
 import blendui.gl.loader;
 
-import containers : HashSet;
+import containers.hashset;
 
 import blendui.core;
 import blendui.events;
@@ -24,7 +26,12 @@ static:
 	public immutable float designDPI = 120f;
 	public float renderDPI = designDPI;
 
-	private bool running = false;
+	private bool running = false, _glDebugEnabled = false;
+	
+	public bool glDebugEnabled() @property
+	{
+		return _glDebugEnabled;
+	}
 	
 	private HashSet!(Window) windows;
 
@@ -40,7 +47,7 @@ static:
 
 	public void initialize()
 	{
-		debug writeln("Initializing...");
+		debug stderr.writeln("Initializing...");
 
 		debug stderr.write("Loading SDL2 library... ");
 		DerelictSDL2.load();
@@ -60,21 +67,27 @@ static:
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3).enforceSDLEquals(0);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3).enforceSDLEquals(0);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE).enforceSDLEquals(0);
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG).enforceSDLEquals(0);
 
 		//Enable debug context
-		debug SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG).enforceSDLEquals(0);
+		debug
+			auto cflags = SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG | SDL_GL_CONTEXT_DEBUG_FLAG;
+		else
+			auto cflags = SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG;
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, cflags).enforceSDLEquals(0);
 
 		//Request some actual bit depth
 		SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8).enforceSDLEquals(0);
 		SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8).enforceSDLEquals(0);
 		SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8).enforceSDLEquals(0);
 		SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 0).enforceSDLEquals(0);
-		SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1).enforceSDLEquals(0);
 		SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 16).enforceSDLEquals(0);
-		SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 1).enforceSDLEquals(0);
+		SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8).enforceSDLEquals(0);
 
-		//TODO: Add multisample support
+		SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1).enforceSDLEquals(0);
+
+		//Enable multisampling support
+		SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
+		SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 4);
 
 		//Enable drag-drop
 		SDL_EventState(SDL_DROPTEXT, SDL_ENABLE);
@@ -85,11 +98,155 @@ static:
 		//Disable text input by default
 		SDL_StopTextInput();
 		
-		debug stderr.writeln("Initializing done.");
+		debug stderr.writeln("Initializing done");
 	}
 
+	extern(System)
 	{
+		private void debugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, in GLchar* message, GLvoid* userParam)
+		{
+			string sourceStr;
+			switch(source)
+			{
+				case GL_DEBUG_SOURCE_API:
+					sourceStr = "API";
+					break;
+				case GL_DEBUG_SOURCE_APPLICATION:
+					sourceStr = "Application";
+					break;
+				case GL_DEBUG_SOURCE_OTHER:
+					sourceStr = "Other";
+					break;
+				case GL_DEBUG_SOURCE_SHADER_COMPILER:
+					sourceStr = "ShaderCompiler";
+					break;
+				case GL_DEBUG_SOURCE_THIRD_PARTY:
+					sourceStr = "ThirdParty";
+					break;
+				case GL_DEBUG_SOURCE_WINDOW_SYSTEM:
+					sourceStr = "WindowSystem";
+					break;
+				default:
+					sourceStr = "?";
+					break;
+			}
+			string typeStr;
+			switch(type)
+			{
+				case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+					typeStr = "DeprecatedBehavior";
+					break;
+				case GL_DEBUG_TYPE_ERROR:
+					typeStr = "Error";
+					break;
+				case GL_DEBUG_TYPE_MARKER:
+					typeStr = "Marker";
+					break;
+				case GL_DEBUG_TYPE_OTHER:
+					typeStr = "Other";
+					break;
+				case GL_DEBUG_TYPE_PERFORMANCE:
+					typeStr = "Performance";
+					break;
+				case GL_DEBUG_TYPE_POP_GROUP:
+					typeStr = "PopGroup";
+					break;
+				case GL_DEBUG_TYPE_PORTABILITY:
+					typeStr = "Portability";
+					break;
+				case GL_DEBUG_TYPE_PUSH_GROUP:
+					typeStr = "PushGroup";
+					break;
+				case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+					typeStr = "UndefinedBehavior";
+					break;
+				default:
+					typeStr = "?";
+					break;
+			}
+			string severityStr;
+			switch(severity)
+			{
+				case GL_DEBUG_SEVERITY_HIGH:
+					severityStr = "High";
+					break;
+				case GL_DEBUG_SEVERITY_LOW:
+					severityStr = "Low";
+					break;
+				case GL_DEBUG_SEVERITY_MEDIUM:
+					severityStr = "Medium";
+					break;
+				case GL_DEBUG_SEVERITY_NOTIFICATION:
+					severityStr = "Notification";
+					break;
+				default:
+					severityStr = "?";
+					break;
+			}
+			synchronized (logLock)
+			{
+				stderr.writefln!"[%s - Source:%s, Type:%s, Severity:%s] %s"(id, sourceStr, typeStr, severityStr, message.fromStringz());
+				stderr.writeln(getStackTrace());
+				stderr.flush();
+			}
+		}
 
+		private void debugCallbackAMD(GLuint id, GLenum category, GLenum severity, GLsizei length, in GLchar* message, GLvoid* userParam)
+		{
+			string categoryStr;
+			switch(category)
+			{
+				case GL_DEBUG_CATEGORY_API_ERROR_AMD:
+					categoryStr = "API";
+					break;
+				case GL_DEBUG_CATEGORY_APPLICATION_AMD:
+					categoryStr = "Application";
+					break;
+				case GL_DEBUG_CATEGORY_DEPRECATION_AMD:
+					categoryStr = "Deprecation";
+					break;
+				case GL_DEBUG_CATEGORY_OTHER_AMD:
+					categoryStr = "Other";
+					break;
+				case GL_DEBUG_CATEGORY_PERFORMANCE_AMD:
+					categoryStr = "Performance";
+					break;
+				case GL_DEBUG_CATEGORY_SHADER_COMPILER_AMD:
+					categoryStr = "ShaderCompiler";
+					break;
+				case GL_DEBUG_CATEGORY_UNDEFINED_BEHAVIOR_AMD:
+					categoryStr = "UndefinedBehavior";
+					break;
+				case GL_DEBUG_CATEGORY_WINDOW_SYSTEM_AMD:
+					categoryStr = "WindowSystem";
+					break;
+				default:
+					categoryStr = "?";
+					break;
+			}
+			string severityStr;
+			switch(severity)
+			{
+				case GL_DEBUG_SEVERITY_HIGH_AMD:
+					severityStr = "High";
+					break;
+				case GL_DEBUG_SEVERITY_LOW_AMD:
+					severityStr = "Low";
+					break;
+				case GL_DEBUG_SEVERITY_MEDIUM_AMD:
+					severityStr = "Medium";
+					break;
+				default:
+					severityStr = "?";
+					break;
+			}
+			synchronized (logLock)
+			{
+				stderr.writefln!"[%s - Category:%s, Severity:%s] %s"(id, categoryStr, severityStr, message.fromStringz());
+				stderr.writeln(getStackTrace(), '\n');
+				stderr.flush();
+			}
+		}
 	}
 
 	private SDL_GLContext glContext = null;
@@ -99,7 +256,11 @@ static:
 		if (window == null)
 			return glContext;
 
-		if (glContext == null)
+		if (glContext != null)
+		{
+			return glContext;
+		}
+		else
 		{
 			glContext = SDL_GL_CreateContext(window);
 			glContext.enforceSDLNotNull("OpenGL context could not be created");
@@ -117,19 +278,38 @@ static:
 				stderr.writeln("GLSL Version: ", glGetString(GL_SHADING_LANGUAGE_VERSION).fromStringz());
 				stderr.writeln("Vendor: ", glGetString(GL_VENDOR).fromStringz());
 				stderr.writeln("----------------------------------------");
+
+				if (GL_KHR_debug)
+					glDebugMessageCallbackKHR(&debugCallback, null);
+				else if (GL_ARB_debug_output)
+					glDebugMessageCallbackARB(&debugCallback, null);
+				else if (GL_AMD_debug_output)
+					glDebugMessageCallbackAMD(&debugCallbackAMD, null);
+
+				auto err = glGetError();
+				if (err != GL_NO_ERROR)
+					writefln!"0x%X"(err);
+
+				_glDebugEnabled = GL_KHR_debug || GL_ARB_debug_output || GL_AMD_debug_output;
+				if (_glDebugEnabled)
+				{
+					glEnable(GL_DEBUG_OUTPUT);
+					stderr.writeln("Debugging enabled");
+				}
 			}
-			glEnable(GL_DEBUG_OUTPUT);
+
+			glEnable(GL_MULTISAMPLE);
 			glDisable(GL_CULL_FACE);
 			glEnable(GL_BLEND);
-			glEnable(GL_LINE_SMOOTH);
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			glEnable(GL_LINE_SMOOTH);
 			glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
 
 			//Disable vsync
 			SDL_GL_SetSwapInterval(0).enforceSDLEquals(0, "Could not set swap interval (VSync).");
-		}
 
-		return glContext;
+			return glContext;
+		}
 	}
 
 	public void run(Window mainWindow = null)
@@ -211,3 +391,10 @@ static:
 		debug stderr.writeln("Done.");
 	}
 }
+
+private shared static this()
+{
+	logLock = new Object;
+}
+
+private __gshared Object logLock;
