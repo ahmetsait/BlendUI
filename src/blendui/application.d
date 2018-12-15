@@ -312,11 +312,11 @@ static:
 		}
 	}
 
-	public void run(Window mainWindow = null)
-	{
-		if (mainWindow !is null)
-			mainWindow.show();
+	public Event!() keymapChanged;
+	public Event!() clipboardUpdate;
 
+	public void run()
+	{
 		running = true;
 		SDL_Event event;
 		while (running)
@@ -365,8 +365,14 @@ static:
 								window.handleEvent(event);
 						}
 						break;
+					case SDL_KEYMAPCHANGED:
+						keymapChanged.fire();
+						break;
+					case SDL_CLIPBOARDUPDATE:
+						clipboardUpdate.fire();
+						break;
 					default:
-						debug stderr.writeln(format!"Event not sent: %d"(event.type));
+						debug stderr.writefln!"Undispatched event: 0x%X"(event.type);
 						break;
 				}
 			}
@@ -388,7 +394,7 @@ static:
 		debug stderr.write("Terminating... ");
 		//Quit SDL subsystems
 		SDL_Quit();
-		debug stderr.writeln("Done.");
+		debug stderr.writeln("Done");
 	}
 }
 
