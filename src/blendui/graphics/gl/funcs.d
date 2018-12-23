@@ -1,6 +1,6 @@
-module blendui.gl.funcs;
+module blendui.graphics.gl.funcs;
 
-import blendui.gl.types;
+import blendui.graphics.gl.types;
 
 bool GL_VERSION_1_0;
 bool GL_VERSION_1_1;

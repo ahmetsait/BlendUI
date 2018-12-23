@@ -1,4 +1,4 @@
-module blendui.gl.loader;
+module blendui.graphics.gl.loader;
 
 import std.format : format;
 import std.string : toStringz, fromStringz;
@@ -6,10 +6,10 @@ import std.exception : ErrnoException;
 
 import containers.hashset;
 
-import blendui.gl.funcs;
-import blendui.gl.ext;
-import blendui.gl.enums;
-import blendui.gl.types;
+import blendui.graphics.gl.funcs;
+import blendui.graphics.gl.ext;
+import blendui.graphics.gl.enums;
+import blendui.graphics.gl.types;
 
 version (Windows)
     import core.sys.windows.windows;
@@ -20,7 +20,7 @@ version (Windows)
     private __gshared HMODULE libGL;
 version (Posix)
     private __gshared void* libGL;
-	
+
 private alias Loader = void* delegate(const(char)*);
 private __gshared extern(System) void* function(const(char)*) getProcAddressPtr;
 

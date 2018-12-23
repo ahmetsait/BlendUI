@@ -8,8 +8,8 @@ import std.algorithm : canFind, countUntil, map;
 import std.array : split, array;
 
 import derelict.sdl2.sdl;
-import blendui.gl.all;
-import blendui.gl.loader;
+import blendui.graphics.gl;
+import blendui.graphics.gl.loader;
 
 import containers.hashset;
 

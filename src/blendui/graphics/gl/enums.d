@@ -1,6 +1,6 @@
-module blendui.gl.enums;
+module blendui.graphics.gl.enums;
 
-import blendui.gl.types;
+import blendui.graphics.gl.types;
 
 enum ubyte GL_FALSE = 0;
 enum ubyte GL_TRUE = 1;

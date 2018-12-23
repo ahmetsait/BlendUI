@@ -1,4 +1,4 @@
-module blendui.gl.types;
+module blendui.graphics.gl.types;
 
 alias GLvoid = void;
 alias GLintptr = ptrdiff_t;

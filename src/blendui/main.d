@@ -2,7 +2,7 @@ import std.stdio : write, writeln, stderr;
 import std.format : format;
 
 import derelict.sdl2.sdl;
-import blendui.gl.gl;
+import blendui.graphics.gl;
 
 import blendui.application;
 import blendui.core;

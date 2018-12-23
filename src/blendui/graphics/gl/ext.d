@@ -1,8 +1,8 @@
-module blendui.gl.ext;
+module blendui.graphics.gl.ext;
 
-import blendui.gl.types;
-import blendui.gl.enums;
-import blendui.gl.funcs;
+import blendui.graphics.gl.types;
+import blendui.graphics.gl.enums;
+import blendui.graphics.gl.funcs;
 
 bool GL_AMD_debug_output;
 bool GL_ARB_debug_output;
