@@ -8,6 +8,8 @@ import std.algorithm : canFind, countUntil, map;
 import std.array : split, array;
 
 import derelict.sdl2.sdl;
+import derelict.freeimage.freeimage;
+import derelict.freetype.ft;
 import blendui.graphics.gl;
 import blendui.graphics.gl.loader;
 
@@ -52,6 +54,14 @@ static:
 		debug stderr.write("Loading SDL2 library... ");
 		DerelictSDL2.load();
 		debug stderr.writeln("Done");
+		
+		debug stderr.write("Loading FreeImage library... ");
+		DerelictFI.load();
+		debug stderr.writeln("Done");
+		
+		debug stderr.write("Loading FreeType library... ");
+		DerelictFT.load();
+		debug stderr.writeln("Done");
 
 		SDL_SetHint(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, "1").enforceSDLEquals(1);			//It's a general purpose GUI not a game
 		SDL_SetHint(SDL_HINT_TIMER_RESOLUTION, "0").enforceSDLEquals(1);				//Do not set timer resolution to save CPU cycles
@@ -70,17 +80,17 @@ static:
 
 		//Enable debug context
 		debug
-			auto cflags = SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG | SDL_GL_CONTEXT_DEBUG_FLAG;
+			auto ctxflags = SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG | SDL_GL_CONTEXT_DEBUG_FLAG;
 		else
-			auto cflags = SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG;
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, cflags).enforceSDLEquals(0);
+			auto ctxflags = SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG;
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, ctxflags).enforceSDLEquals(0);
 
 		//Request some actual bit depth
 		SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8).enforceSDLEquals(0);
 		SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8).enforceSDLEquals(0);
 		SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8).enforceSDLEquals(0);
 		SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 0).enforceSDLEquals(0);
-		SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 16).enforceSDLEquals(0);
+		SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 0).enforceSDLEquals(0);
 		SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8).enforceSDLEquals(0);
 
 		SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1).enforceSDLEquals(0);
@@ -262,8 +272,8 @@ static:
 		}
 		else
 		{
-			glContext = SDL_GL_CreateContext(window);
-			glContext.enforceSDLNotNull("OpenGL context could not be created");
+			glContext = SDL_GL_CreateContext(window)
+				.enforceSDLNotNull("OpenGL context could not be created");
 			debug stderr.write("Loading OpenGL library... ");
 			if (!loadGL())
 				throw new GraphicsException("Failed to load OpenGL 3.3");
