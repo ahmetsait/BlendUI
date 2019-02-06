@@ -1,10 +1,13 @@
 module blendui.util;
 
 import std.format : format;
+import std.meta;
 import std.range;
-import std.traits;
-
+import std.stdio : write, writef, writeln, writefln, stderr;
 import std.string : indexOf, lastIndexOf;
+import std.traits;
+import std.typecons;
+
 
 string getStackTrace()
 {
@@ -33,42 +36,45 @@ template Field(T, string name, bool readOnly = false)
 	static assert(name.length > 0);
 
 	mixin("private T _" ~ name  ~ ";");
-	mixin("public ref " ~ (readOnly ? "const(T) " : "T ") ~ name ~ "() @property { return " ~ (readOnly ? "cast(const)" : "") ~ "_" ~ name ~ "; }");
+	//mixin("public ref " ~ (readOnly ? "const(T) " : "T ") ~ name ~ "() @property { return " ~ (readOnly ? "cast(const)" : "") ~ "_" ~ name ~ "; }");
+	mixin("public T " ~ name ~ "() @property { return _" ~ name ~ "; }");
 	mixin((readOnly ? "private" : "public") ~ " T " ~ name ~ "(T value) @property { return _" ~ name ~ " = value; }");
 }
 
 ///Mixin template for creating accessors (get/set) combined with events.
 ///Creates a private variable prefixed with an underscore.
-template Property(T, string name, bool readOnly = false, bool onChangedMethod = false)
+template Property(T, string name, bool readOnly = false, bool onChangedMethod = false, string args, Args...)
+	if (isTypeTuple!Args)
 {
 	import blendui.events;
-	import std.traits : isPointer;
 
 	static assert(name.length > 0);
 	
 	mixin("private T _" ~ name  ~ ";");
-	mixin("public ref " ~ (readOnly ? "const(T) " : "T ") ~ name ~ "() @property { return " ~ (readOnly ? "cast(const)" : "") ~ "_" ~ name ~ "; }");
+	//mixin("public ref " ~ (readOnly ? "const(T) " : "T ") ~ name ~ "() @property { return " ~ (readOnly ? "cast(const)" : "") ~ "_" ~ name ~ "; }");
+	mixin("public T " ~ name ~ "() @property { return _" ~ name ~ "; }");
 	enum setterCode = `
 		public T %1$s(T value) @property
 		{
 			auto old = _%1$s;
 			_%1$s = value;
 			if (old != value)
-				%1$sChanged(this);
+				` ~ (onChangedMethod ? "on%2$sChanged()" : "%1$sChanged(args)") ~ `;
 			return _%1$s;
 		}
-		public Event!(Object) %1$sChanged;
+		public Event!(Args) %1$sChanged;
 	`;
 	enum onChangedCode = `
-		protected void on%sChanged()
+		protected void on%2$sChanged()
 		{
-			%sChanged(this);
+			%1$sChanged(%3$s);
 		}
 	`;
 	static if (!readOnly)
-		mixin(format!(setterCode)(name));
+		mixin(format!(setterCode)(name, name.toPascalCase));
+
 	static if (onChangedMethod)
-		mixin(format!(onChangedCode)(name.toPascalCase, name));
+		mixin(format!(onChangedCode)(name, name.toPascalCase, args));
 }
 
 unittest
@@ -76,21 +82,23 @@ unittest
 	class TestCapsule
 	{
 		mixin Field!(int, "counter");
-		mixin Property!(bool, "counting", false, true);
-		mixin Property!(float[], "percentageList", true);
+		mixin Property!(bool, "counting", false, true, q{this}, TestCapsule);
+		mixin Property!(float[], "percentageList", true, false, q{this}, TestCapsule);
 		
 		public this()
 		{
 			_percentageList = [0.2f, 0.8f];
 		}
 		
-		public void countingChangedHandler(Object sender)
+		public void countingChangedHandler(TestCapsule sender)
 		{
 			assert(counting == true);
 		}
 	}
 	TestCapsule t = new TestCapsule();
 	t.counter = 8;
+	//t.counter += 2;
+	t.counter = t.counter + 2; //Because fuck consistency that's why
 	static assert(!__traits(compiles, t.percentageList = []));
 	const(float[]) pList = t.percentageList;
 	assert(pList == [0.2f, 0.8f]);
@@ -119,7 +127,7 @@ string toPascalCase(S)(S str) if(isSomeString!S)
 	}
 	if(index != -1)
 	{
-		//Capitalize is not ligature aware but probably nobody needs this anyway
+		//FIXME: Capitalize is not ligature aware but probably nobody needs this anyway
 		result = result[0 .. index] ~ capitalize(result[index].to!dstring) ~ result[index + 1 .. $];
 	}
 	return result.toUTF8();
@@ -134,21 +142,9 @@ unittest
 
 enum bool isIterableReverse(T) = is(typeof({ foreach_reverse (elem; T.init) {} }));
 
-public bool tryGetValue(T : V[K], V, K)(T aa, K key, ref V value)
-{
-	foreach(item; aa.byKey)
-	{
-		if (item == key)
-		{
-			value = aa[key];
-			return true;
-		}
-	}
-	return false;
-}
-
 ///Returns index of the first element that is equal to the value in the given iterable range.
-public bool contains(Range, E)(Range haystack, E needle) if(isIterable!Range && is(Unqual!E : Unqual!(ElementType!Range)))
+public bool contains(Range, E)(Range haystack, E needle)
+	if(isIterable!Range && is(Unqual!E : Unqual!(ElementType!Range)))
 {
 	foreach(element; haystack)
 		if (element == needle)
@@ -157,7 +153,8 @@ public bool contains(Range, E)(Range haystack, E needle) if(isIterable!Range && 
 }
 
 ///Returns index of the first element that is equal to the value in the given iterable range.
-public sizediff_t indexOf(Range, E)(Range haystack, E needle) if(isIterable!Range && is(Unqual!E : Unqual!(ElementType!Range)))
+public sizediff_t indexOf(Range, E)(Range haystack, E needle)
+	if(isIterable!Range && is(Unqual!E : Unqual!(ElementType!Range)))
 {
 	sizediff_t i = 0;
 	foreach(element; haystack)
@@ -169,7 +166,8 @@ public sizediff_t indexOf(Range, E)(Range haystack, E needle) if(isIterable!Rang
 }
 
 ///Returns index of the last element that is equal to the value in the given iterable range.
-public sizediff_t lastIndexOf(Range, E)(Range haystack, E needle) if(is(Unqual!(ElementType!Range) == Unqual!E) && (isIterableReverse!Range || isIterable!Range))
+public sizediff_t lastIndexOf(Range, E)(Range haystack, E needle)
+	if(is(Unqual!(ElementType!Range) == Unqual!E) && (isIterableReverse!Range || isIterable!Range))
 {
 	static if(isIterableReverse!Range)
 	{
