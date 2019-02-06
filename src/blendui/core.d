@@ -12,6 +12,14 @@ class ApplicationException : Exception
 	}
 }
 
+class ObjectDisposedException : Exception
+{
+	public this(string msg, string file = __FILE__, size_t line = __LINE__, Throwable next = null) @nogc @safe pure nothrow
+	{
+		super(msg, file, line, next);
+	}
+}
+
 class InvalidOperationException : Exception
 {
 	public this(string msg, string file = __FILE__, size_t line = __LINE__, Throwable next = null) @nogc @safe pure nothrow
@@ -30,9 +38,9 @@ class NotImplementedException : Exception
 
 class ArgumentNullException : Exception
 {
-	public this(string arg, string msg, string file = __FILE__, size_t line = __LINE__, Throwable next = null) @safe pure
+	public this(string msg, string arg = null, string file = __FILE__, size_t line = __LINE__, Throwable next = null) @safe pure
 	{
-		super(format!"Argument '%s' cannot be null. %s"(arg, msg), file, line, next);
+		super(arg == null ? msg : format!"Argument '%s' cannot be null. %s"(arg, msg), file, line, next);
 	}
 }
 
@@ -86,5 +94,5 @@ T* enforceSDLNotNull(T)(T* returnValue, string message = null)
 
 interface IDisposable
 {
-	void Dispose();
+	void dispose();
 }
