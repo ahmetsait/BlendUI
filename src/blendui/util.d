@@ -8,6 +8,47 @@ import std.string : indexOf, lastIndexOf;
 import std.traits;
 import std.typecons;
 
+import blendui.math.rectangle;
+import blendui.graphics.gl;
+import derelict.sdl2.sdl;
+
+public Rectangle!int blSubWindow(Rectangle!int area, SDL_Window* window)
+{
+	int w, h;
+	SDL_GL_GetDrawableSize(window, &w, &h);
+	Rectangle!int current;
+	glGetIntegerv(GL_VIEWPORT, cast(int*)&current);
+	Rectangle!int corrected = Rectangle!int(current.x, h - current.y - current.height, current.width, current.height);
+
+	area.left = area.left < 0 ? 0 : area.left;
+	area.top = area.top < 0 ? 0 : area.top;
+	area.width = area.right + corrected.left > corrected.right ? corrected.right - (corrected.left + area.left) : area.width;
+	area.width = area.width < 0 ? 0 : area.width;
+	area.height = area.bottom + corrected.top > corrected.bottom ? corrected.bottom - (corrected.top + area.top) : area.height;
+	area.height = area.height < 0 ? 0 : area.height;
+	int y = h - area.y - area.height;
+	Rectangle!int sub = Rectangle!int(area.x, y, area.width, area.height);
+	glViewport(sub.x, sub.y, sub.width, sub.height);
+	glScissor(sub.x, sub.y, sub.width, sub.height);
+
+	return area;
+}
+
+public Rectangle!int blResetSubWindow(SDL_Window* window)
+{
+	int w, h;
+	SDL_GL_GetDrawableSize(window, &w, &h);
+	glViewport(0, 0, w, h);
+	glScissor(0, 0, w, h);
+	
+	return Rectangle!int(0, 0, w, h);
+}
+
+public struct DefaultValue
+{
+	public string symbol;
+}
+
 public RLock!T rlock(T)(ref T ptr)
 {
 	return RLock!(T)(&ptr);
