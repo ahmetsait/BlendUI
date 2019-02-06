@@ -32,6 +32,22 @@ public struct Point(T) if(isNumeric!T)
 	///Returns the Point (0, 0).
 	public static const Point!T empty = Point!T();
 	
+	auto opBinary(string op, R)(Point!R point) if(isNumeric!R)
+	{
+		static if (op == "+")
+		{
+			alias F = typeof(x + point.x);
+			return Point!F(x + point.x, y + point.y);
+		}
+		else static if (op == "-")
+		{
+			alias F = typeof(x - point.x);
+			return Point!F(x - point.x, y - point.y);
+		}
+		else
+			static assert(0, "Operator " ~ op ~ " not implemented");
+	}
+	
 	auto opBinary(string op, R)(R scalar) if(isNumeric!R)
 	{
 		static if (op == "*")
@@ -43,22 +59,6 @@ public struct Point(T) if(isNumeric!T)
 		{
 			alias F = typeof(x / scalar);
 			return Point!F(x / scalar, y / scalar);
-		}
-		else
-			static assert(0, "Operator " ~ op ~ " not implemented");
-	}
-
-	auto opBinary(string op, R)(Point!R point) if(isNumeric!R)
-	{
-		static if (op == "+")
-		{
-			alias F = typeof(x + point.x);
-			return Point!T(x + point.x, y + point.y);
-		}
-		else static if (op == "-")
-		{
-			alias F = typeof(x - point.x);
-			return Point!T(x - point.x, y - point.y);
 		}
 		else
 			static assert(0, "Operator " ~ op ~ " not implemented");

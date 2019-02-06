@@ -34,12 +34,50 @@ public struct Size(T) if(isNumeric!T)
 	///Returns a Size instance equal to (0, 0).
 	public static const Size zero = Size();
 	
+	auto opBinary(string op, R)(R scalar) if(isNumeric!R)
+	{
+		static if (op == "*")
+		{
+			alias F = typeof(width * scalar);
+			return Size!F(width * scalar, height * scalar);
+		}
+		else static if (op == "/")
+		{
+			alias F = typeof(width / scalar);
+			return Size!F(width / scalar, height / scalar);
+		}
+		else
+			static assert(0, "Operator " ~ op ~ " not implemented");
+	}
+	
 	Size opBinary(string op)(Size rhs)
 	{
 		static if (op == "+")
+		{
+			alias F = typeof(x + rhs.width);
 			return Size!T(x + rhs.width, y + rhs.height);
+		}
 		else static if (op == "-")
-			return Size!T(x - rhs.width, y - rhs.height);
+		{
+			alias F = typeof(x - rhs.width);
+			return Size!F(x - rhs.width, y - rhs.height);
+		}
+		else
+			static assert(0, "Operator " ~ op ~ " not implemented");
+	}
+	
+	auto opBinary(string op, R)(Point!R point) if(isNumeric!R)
+	{
+		static if (op == "+")
+		{
+			alias F = typeof(x + point.x);
+			return Point!F(x + point.x, y + point.y);
+		}
+		else static if (op == "-")
+		{
+			alias F = typeof(x - point.x);
+			return Point!F(x - point.x, y - point.y);
+		}
 		else
 			static assert(0, "Operator " ~ op ~ " not implemented");
 	}
