@@ -12,21 +12,28 @@ import blendui.graphics.gltype;
 import gfm.math.vector;
 import gfm.math.matrix;
 
-public struct Shader
+public final class Shader : IDisposable
 {
 	private uint id;
 	private int[string] uniformTable;
 
-	public this(string vertSource, string fragSource)
+	public this(string vertSource, string fragSource, string geoSource = null)
 	{
 		uint vert = CompileShader(vertSource, GL_VERTEX_SHADER);
 		uint frag = CompileShader(fragSource, GL_FRAGMENT_SHADER);
+		uint geo = geoSource == null ? 0 : CompileShader(geoSource, GL_GEOMETRY_SHADER);
+
 		uint prog = glCreateProgram();
+
 		glAttachShader(prog, vert);
 		glAttachShader(prog, frag);
+		if (geo != 0) glAttachShader(prog, geo);
+
 		glLinkProgram(prog);
+
 		glDeleteShader(vert);
 		glDeleteShader(frag);
+		if (geo != 0) glDeleteShader(geo);
 
 		int success;
 		glGetProgramiv(prog, GL_LINK_STATUS, &success);
@@ -45,7 +52,7 @@ public struct Shader
 	{
 		uint shader = glCreateShader(type);
 		auto src = source.toStringz();
-		assert(source.length > int.max);
+		assert(source.length < int.max);
 		int len = cast(int)source.length;
 		glShaderSource(shader, 1, &src, &len);
 		glCompileShader(shader);
@@ -148,4 +155,48 @@ public struct Shader
 		static assert(__traits(compiles, s.SetUniform("m", mat4x2f())));
 		static assert(__traits(compiles, s.SetUniform("m", mat4x3f())));
 	}
+
+	//region IDisposable implementation
+	protected bool _disposed = false; //To detect redundant calls
+	public bool disposed() @property
+	{
+		return _disposed;
+	}
+	
+	protected void dispose(bool disposing)
+	{
+		if (!_disposed)
+		{
+			if (disposing)
+			{
+				//Dispose managed state (managed objects).
+				destroy(uniformTable);
+			}
+			
+			//Free unmanaged resources (unmanaged objects), set large fields to null.
+			if (id != 0)
+				glDeleteShader(id);
+
+			_disposed = true;
+		}
+	}
+	
+	//Override a destructor only if Dispose(bool disposing) above has code to free unmanaged resources.
+	public ~this()
+	{
+		//Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+		dispose(false);
+	}
+	
+	//This code added to correctly implement the disposable pattern.
+	public void dispose()
+	{
+		import core.memory : GC;
+		//Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+		dispose(true);
+		//Uncomment the following line if the destructor is overridden above.
+		GC.clrAttr(cast(void*)this, GC.BlkAttr.FINALIZE);
+		//FIXME: D runtime currently doesn't give a shit about GC.BlkAttr.FINALIZE so it's actually pointless
+	}
+	//endregion
 }
