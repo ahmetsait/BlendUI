@@ -311,11 +311,12 @@ static:
 			}
 
 			glEnable(GL_MULTISAMPLE);
+			glEnable(GL_STENCIL_TEST);
+			glEnable(GL_SCISSOR_TEST);
+			glDisable(GL_DEPTH_TEST);
 			glDisable(GL_CULL_FACE);
 			glEnable(GL_BLEND);
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-			glEnable(GL_LINE_SMOOTH);
-			glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
 
 			//Disable vsync
 			SDL_GL_SetSwapInterval(0).enforceSDLEquals(0, "Could not set swap interval (VSync).");
