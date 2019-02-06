@@ -1,30 +1,16 @@
 ﻿module blendui.graphics.shader;
 
-debug import std.stdio : write, writeln;
+import std.conv : to;
 import std.string : toStringz, fromStringz;
 import std.format : format;
-import std.conv : to;
 
-import derelict.sdl2.sdl;
-import blendui.gl.gl;
+import blendui.core;
+import blendui.util;
+import blendui.graphics.gl;
+import blendui.graphics.gltype;
 
 import gfm.math.vector;
 import gfm.math.matrix;
-
-import blendui.core;
-import blendui.math;
-import blendui.util;
-
-private immutable uniformTypes = [
-	"int",
-	"uint",
-	"float"
-];
-private immutable uniformSuffixes = [
-	"i",
-	"ui",
-	"f"
-];
 
 public struct Shader
 {
@@ -82,18 +68,18 @@ public struct Shader
 		glUseProgram(id);
 	}
 
-	public void SetUniform(T)(string name, T value) if (uniformTypes.contains(T.stringof))
+	public void SetUniform(T)(string name, T value) if (isGLType!T)
 	{
-		enum index = uniformTypes.indexOf(T.stringof);
+		enum string suffix = toGLSuffix!T;
 		int* locationPtr = name in uniformTable;
 		if (locationPtr != null)
-			mixin(q{glUniform1} ~ uniformSuffixes[index] ~ q{(*locationPtr, value);});
+			mixin("glUniform1" ~ suffix ~ "(*locationPtr, value);");
 		else
 		{
 			int location = glGetUniformLocation(id, name.toStringz());
 			if (location == -1)
 				throw new GraphicsException(format!"Uniform (%s) location could not be retrieved."(name));
-			mixin(q{glUniform1} ~ uniformSuffixes[index] ~ q{(uniformTable[name] = location, value);});
+			mixin("glUniform1" ~ suffix ~ "(uniformTable[name] = location, value);");
 		}
 	}
 
@@ -107,19 +93,20 @@ public struct Shader
 		static assert(!__traits(compiles, s.SetUniform("b", true)));
 	}
 
-	public void SetUniform(T, int N)(string name, Vector!(T, N) value) if (uniformTypes.contains(T.stringof))
+	public void SetUniform(T, int N)(string name, Vector!(T, N) value) if (isGLType!T)
 	{
 		static assert(N >= 2 && N <= 4, "Vector length out of range");
-		enum index = uniformTypes.indexOf(T.stringof);
+
+		enum string suffix = toGLSuffix!T;
 		int* locationPtr = name in uniformTable;
 		if (locationPtr != null)
-			mixin(q{glUniform} ~ N.to!string ~ uniformSuffixes[index] ~ q{v(*locationPtr, 1, value.v.ptr);});
+			mixin("glUniform" ~ N.to!string ~ suffix ~ "v(*locationPtr, 1, value.v.ptr);");
 		else
 		{
 			int location = glGetUniformLocation(id, name.toStringz());
 			if (location == -1)
 				throw new GraphicsException(format!"Uniform (%s) location could not be retrieved."(name));
-			mixin(q{glUniform} ~ N.to!string ~ uniformSuffixes[index] ~ q{v(uniformTable[name] = location, 1, value.v.ptr);});
+			mixin("glUniform" ~ N.to!string ~ suffix ~ "v(uniformTable[name] = location, 1, value.v.ptr);");
 		}
 	}
 	
@@ -131,18 +118,20 @@ public struct Shader
 		static assert(__traits(compiles, s.SetUniform("v", vec4f(6, 7, 8, 9))));
 	}
 
-	public void SetUniform(int R, int C)(string name, Matrix!(float, R, C) value)
+	public void SetUniform(T, int R, int C)(string name, Matrix!(T, R, C) value)
 	{
 		static assert(R >= 2 && R <= 4 && C >= 2 && C <= 4, "Matrix dimension(s) out of range");
+
+		enum string suffix = toGLSuffix!T;
 		int* locationPtr = name in uniformTable;
 		if (locationPtr != null)
-			mixin(q{glUniformMatrix} ~ (R == C ? R.to!string : R.to!string ~ "x" ~ C.to!string) ~ q{fv(*locationPtr, 1, true, value.v.ptr);});
+			mixin("glUniformMatrix" ~ (R == C ? R.to!string : C.to!string ~ "x" ~ R.to!string) ~ suffix ~ "v(*locationPtr, 1, true, value.v.ptr);");
 		else
 		{
 			int location = glGetUniformLocation(id, name.toStringz());
 			if (location == -1)
 				throw new GraphicsException(format!"Uniform (%s) location could not be retrieved."(name));
-			mixin(q{glUniformMatrix} ~ (R == C ? R.to!string : R.to!string ~ "x" ~ C.to!string) ~ q{fv(uniformTable[name] = location, 1, true, value.v.ptr);});
+			mixin("glUniformMatrix" ~ (R == C ? R.to!string : C.to!string ~ "x" ~ R.to!string) ~ suffix ~ "v(uniformTable[name] = location, 1, true, value.v.ptr);");
 		}
 	}
 	
