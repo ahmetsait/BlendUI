@@ -4,5 +4,5 @@ import derelict.sdl2.types;
 
 public interface IEventReceiver
 {
-	void handleEvent(SDL_Event event);
+	bool handleEvent(ref SDL_Event event);
 }

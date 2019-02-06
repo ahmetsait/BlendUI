@@ -417,8 +417,8 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 	}
 	//endregion
 
-	//region handleEvent(SDL_Event event)
-	public void handleEvent(SDL_Event event)
+	//region handleEvent
+	public bool handleEvent(ref SDL_Event event)
 	{
 		switch (event.type)
 		{
@@ -428,117 +428,106 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 					case SDL_WINDOWEVENT_SHOWN:
 						_visible = true;
 						onShown();
-						break;
+						return true;
 					case SDL_WINDOWEVENT_HIDDEN:
 						_visible = false;
 						onHidden();
-						break;
+						return true;
 					case SDL_WINDOWEVENT_EXPOSED:
-						onExposed();
-						break;
+						onExposed(event);
+						return true;
 					case SDL_WINDOWEVENT_MOVED:
 						_bounds.x = event.window.data1;
 						_bounds.y = event.window.data2;
 						onMoved();
-						break;
+						return true;
 					case SDL_WINDOWEVENT_RESIZED:
 						onResized();
-						break;
+						return true;
 					case SDL_WINDOWEVENT_SIZE_CHANGED:
 						_bounds.width = event.window.data1;
 						_bounds.height = event.window.data2;
 						onSizeChanged();
-						break;
+						return true;
 					case SDL_WINDOWEVENT_MINIMIZED:
 						_minimized = true;
 						onMinimized();
-						break;
+						return true;
 					case SDL_WINDOWEVENT_MAXIMIZED:
 						_maximized = true;
 						onMaximized();
-						break;
+						return true;
 					case SDL_WINDOWEVENT_RESTORED:
 						_minimized = false;
 						_maximized = false;
 						onRestored();
-						break;
+						return true;
 					case SDL_WINDOWEVENT_ENTER:
 						onMouseEnter();
-						break;
+						return true;
 					case SDL_WINDOWEVENT_LEAVE:
 						onMouseLeave();
-						break;
+						return true;
 					case SDL_WINDOWEVENT_FOCUS_GAINED:
 						_hasFocus = true;
 						onFocusGained();
-						break;
+						return true;
 					case SDL_WINDOWEVENT_FOCUS_LOST:
 						_hasFocus = false;
 						onFocusLost();
-						break;
+						return true;
 					case SDL_WINDOWEVENT_CLOSE:
 						bool cancelled = false;
 						onClosing(&cancelled);
 						if (!cancelled)
 						{
 							onClosed();
-							Dispose();
+							dispose();
 						}
-						break;
+						return true;
 					case SDL_WINDOWEVENT_TAKE_FOCUS:
 						onFocusOffered();
-						break;
+						return true;
 					case SDL_WINDOWEVENT_HIT_TEST:
 						onHitTest();
-						break;
+						return true;
 					default:
 						debug stderr.writefln!"Unhandled window event: 0x%X"(event.window.event);
-						break;
+						return true;
 				}
-				break;
 			case SDL_KEYDOWN:
-				onKeyDown(event.key);
-				break;
+				return onKeyDown(event);
 			case SDL_KEYUP:
-				onKeyUp(event.key);
-				break;
+				return onKeyUp(event);
 			case SDL_TEXTEDITING:
-				onTextEditing(event.edit);
-				break;
+				return onTextEditing(event);
 			case SDL_TEXTINPUT:
-				onTextInput(event.text);
-				break;
+				return onTextInput(event);
 			case SDL_MOUSEMOTION:
-				onMouseMove(event.motion);
-				break;
+				return onMouseMove(event);
 			case SDL_MOUSEBUTTONDOWN:
-				onMouseDown(event.button);
-				break;
+				return onMouseDown(event);
 			case SDL_MOUSEBUTTONUP:
-				onMouseUp(event.button);
-				break;
+				return onMouseUp(event);
 			case SDL_MOUSEWHEEL:
-				onMouseWheel(event.wheel);
-				break;
+				return onMouseWheel(event);
 			case SDL_DROPBEGIN:
-				
-				break;
+				//TODO
+				return false;
 			case SDL_DROPTEXT:
-				
-				break;
+
+				return false;
 			case SDL_DROPFILE:
-				
-				break;
+
+				return false;
 			case SDL_DROPCOMPLETE:
-				
-				break;
+
+				return false;
 			default:
 				writeln(format!"Unhandled event: %d"(event.type));
-				break;
+				return false;
 		}
 	}
-	
-	//endregion
 
 	//region Functions
 	public Event!Window shownFirstTime;

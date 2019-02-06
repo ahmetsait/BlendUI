@@ -360,10 +360,15 @@ static:
 					case SDL_MOUSEBUTTONUP:
 					case SDL_MOUSEWHEEL:
 						//These windowIDs have the same offset
+						bool handled = false;
 						foreach(Window window; windows)
 						{
 							if (window.getSDLWindowID() == event.window.windowID)
+							{
 								window.handleEvent(event);
+								handled = true;
+								break;
+							}
 						}
 						break;
 					case SDL_DROPBEGIN:
@@ -371,10 +376,15 @@ static:
 					case SDL_DROPFILE:
 					case SDL_DROPCOMPLETE:
 						//windowID of SDL_DropEvent has a different offset
+						bool handled = false;
 						foreach(Window window; windows)
 						{
 							if (window.getSDLWindowID() == event.drop.windowID)
+							{
 								window.handleEvent(event);
+								handled = true;
+								break;
+							}
 						}
 						break;
 					case SDL_KEYMAPCHANGED:
