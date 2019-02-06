@@ -3,6 +3,7 @@ module blendui.events;
 import std.stdio : writeln, writefln;
 import core.stdc.stdlib : alloca;
 import std.algorithm.mutation : remove;
+import std.traits : isTypeTuple;
 
 import blendui.core;
 import blendui.util;
@@ -10,7 +11,7 @@ import blendui.util;
 ///Basic event type that allows listeners to subscribe. Used very similar to C#
 ///events. Only class/interface member functions are supported. Any attempt to
 ///use anything other than class/interface member functions will likely crash.
-public struct Event(T...)
+public struct Event(T...) if (isTypeTuple!T)
 {
 	import std.signals : rt_attachDisposeEvent, rt_detachDisposeEvent, _d_toObject;
 
@@ -120,7 +121,7 @@ public struct Event(T...)
 ///Basic event type that allows listeners to subscribe. Used very similar to C#
 ///events. All kinds of delegates are supported. Doesn't automatically
 ///unsubscribe from destroyed objects. Faster. Use with caution.
-public struct EventUnsafe(T...)
+public struct EventUnsafe(T...) if (isTypeTuple!T)
 {
 	public alias listener_t = void delegate(T);
 	
@@ -183,6 +184,7 @@ unittest
 	class TestCapsule
 	{
 		import std.format : format;
+		import std.typecons;
 
 		public string[5] strList;
 		public int call = 0;
