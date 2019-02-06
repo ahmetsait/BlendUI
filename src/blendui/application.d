@@ -17,6 +17,7 @@ import containers.hashset;
 
 import blendui.core;
 import blendui.events;
+import blendui.graphics.font;
 import blendui.math;
 import blendui.ui;
 import blendui.util;
@@ -61,6 +62,10 @@ static:
 		
 		debug stderr.write("Loading FreeType library... ");
 		DerelictFT.load();
+
+		if (FT_Init_FreeType(&ftLib))
+			throw new Exception("Could not load FreeType library.");
+
 		debug stderr.writeln("Done");
 
 		SDL_SetHint(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, "1").enforceSDLEquals(1);			//It's a general purpose GUI not a game
