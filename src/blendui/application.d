@@ -1,62 +1,47 @@
 ﻿module blendui.application;
 
-import std.stdio : write, writef, writeln, writefln, stderr;
+import std.algorithm : canFind, countUntil, map;
 import std.conv : to;
 import std.format : format;
+import std.stdio : write, writef, writeln, writefln, stderr;
 import std.string : toStringz, fromStringz;
-import std.algorithm : canFind, countUntil, map;
-import std.array : split, array;
-
-import derelict.sdl2.sdl;
-import derelict.freeimage.freeimage;
-import derelict.freetype.ft;
-import blendui.graphics.gl;
-import blendui.graphics.gl.loader;
-
-import containers.hashset;
 
 import blendui.core;
 import blendui.events;
 import blendui.graphics.font;
+import blendui.graphics.gl;
+import blendui.graphics.gl.loader;
 import blendui.math;
 import blendui.ui;
 import blendui.util;
+
+import containers.hashset;
+
+import derelict.freeimage.freeimage;
+import derelict.freetype.ft;
+import derelict.sdl2.sdl;
 
 public static class Application
 {
 static:
 
-	private bool running = false, _glDebugEnabled = false;
-	
+	private bool _glDebugEnabled = false;
 	public bool glDebugEnabled() @property
 	{
 		return _glDebugEnabled;
 	}
-	
-	private HashSet!(Window) windows;
 
-	public void registerWindow(Window window)
-	{
-		windows.put(window);
-	}
-	
-	public void unregisterWindow(Window window)
-	{
-		windows.remove(window);
-	}
+	public Event!() keymapChanged;
+	public Event!() clipboardUpdate;
 
 	public void initialize()
 	{
-		debug stderr.writeln("Initializing...");
+		windows = HashSet!Window();
 
-		debug stderr.write("Loading SDL2 library... ");
-		DerelictSDL2.load();
-		debug stderr.writeln("Done");
-		
 		debug stderr.write("Loading FreeImage library... ");
 		DerelictFI.load();
 		debug stderr.writeln("Done");
-		
+
 		debug stderr.write("Loading FreeType library... ");
 		DerelictFT.load();
 
@@ -65,6 +50,9 @@ static:
 
 		debug stderr.writeln("Done");
 
+		debug stderr.write("Loading SDL2 library... ");
+		DerelictSDL2.load();
+		
 		SDL_SetHint(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, "1").enforceSDLEquals(1);			//It's a general purpose GUI not a game
 		SDL_SetHint(SDL_HINT_TIMER_RESOLUTION, "0").enforceSDLEquals(1);				//Do not set timer resolution to save CPU cycles
 		SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0").enforceSDLEquals(1);	//Disable auto minimize
@@ -91,8 +79,8 @@ static:
 		SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8).enforceSDLEquals(0);
 		SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8).enforceSDLEquals(0);
 		SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8).enforceSDLEquals(0);
-		SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 0).enforceSDLEquals(0);
-		SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 0).enforceSDLEquals(0);
+		SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8).enforceSDLEquals(0);
+		SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24).enforceSDLEquals(0);
 		SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8).enforceSDLEquals(0);
 
 		SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1).enforceSDLEquals(0);
@@ -110,9 +98,10 @@ static:
 		//Disable text input by default
 		SDL_StopTextInput();
 		
-		debug stderr.writeln("Initializing done");
+		debug stderr.writeln("Done");
 	}
 
+	//region Debug Callback
 	extern(System)
 	{
 		private void debugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, in GLchar* message, GLvoid* userParam)
@@ -260,8 +249,9 @@ static:
 			}
 		}
 	}
+	//endregion
 
-	private SDL_GLContext glContext = null;
+	private __gshared SDL_GLContext glContext = null;
 
 	public SDL_GLContext getSharedGLContext(SDL_Window* window)
 	{
@@ -276,7 +266,8 @@ static:
 		{
 			glContext = SDL_GL_CreateContext(window)
 				.enforceSDLNotNull("OpenGL context could not be created");
-			debug stderr.write("Loading OpenGL library... ");
+
+			debug stderr.write("Loading OpenGL... ");
 			if (!loadGL())
 				throw new GraphicsException("Failed to load OpenGL 3.3");
 			debug stderr.writeln("Done");
@@ -306,7 +297,7 @@ static:
 				if (_glDebugEnabled)
 				{
 					glEnable(GL_DEBUG_OUTPUT);
-					stderr.writeln("Debugging enabled");
+					stderr.writeln("Debugging enabled\n");
 				}
 			}
 
@@ -325,8 +316,19 @@ static:
 		}
 	}
 
-	public Event!() keymapChanged;
-	public Event!() clipboardUpdate;
+	private HashSet!(Window) windows;
+
+	public void registerWindow(Window window)
+	{
+		windows.put(window);
+	}
+	
+	public void unregisterWindow(Window window)
+	{
+		windows.remove(window);
+	}
+
+	private bool running = false;
 
 	public void run()
 	{
@@ -421,7 +423,7 @@ static:
 	}
 }
 
-private shared static this()
+shared static this()
 {
 	logLock = new Object;
 }
