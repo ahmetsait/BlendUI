@@ -8,6 +8,27 @@ import std.string : indexOf, lastIndexOf;
 import std.traits;
 import std.typecons;
 
+public RLock!T rlock(T)(ref T ptr)
+{
+	return RLock!(T)(&ptr);
+}
+
+public struct RLock(T) 
+{
+	@disable this();
+	@disable this(this);
+
+	T* var;
+	this(T* ptr)
+	{
+		this.var = ptr;
+		(*var)++;
+	}
+	~this()
+	{
+		(*var)--;
+	}
+}
 
 string getStackTrace()
 {
