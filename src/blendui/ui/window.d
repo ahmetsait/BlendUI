@@ -1,23 +1,23 @@
 ﻿module blendui.ui.window;
 
-import std.stdio : write, writef, writeln, writefln, stderr;
-import std.format : format;
-import std.string : toStringz, fromStringz;
 import std.algorithm : clamp;
-import std.typecons : Nullable;
+import std.concurrency : thisTid, Tid;
 import std.exception : ErrnoException;
+import std.format : format;
+import std.stdio : write, writef, writeln, writefln, stderr;
+import std.string : toStringz, fromStringz;
 
-import derelict.sdl2.sdl;
-import blendui.graphics.gl;
-
-import gfm.math.vector : vec4f;
-
+import blendui.application;
 import blendui.core;
 import blendui.events;
+import blendui.graphics.gl;
 import blendui.math;
 import blendui.ui;
 import blendui.util;
-import blendui.application;
+
+import derelict.sdl2.sdl;
+
+import gfm.math.vector : vec4f;
 
 public enum WindowStartPosition : ubyte
 {
@@ -27,25 +27,127 @@ public enum WindowStartPosition : ubyte
 	manual			= 3,
 }
 
-public interface IWindow
+//region IWindow
+public interface IWindow : IDisposable
 {
-	//TODO
+	void* getSystemWindow();
+
+	string title() @property;
+	string title(string value) @property;
+
+	Rectangle!int bounds() @property;
+	Rectangle!int bounds(Rectangle!int value) @property;
+
+	Size!int maxSize() @property;
+	Size!int maxSize(Size!int value) @property;
+
+	Size!int minSize() @property;
+	Size!int minSize(Size!int value) @property;
+
+	bool resizable() @property;
+	bool resizable(bool value) @property;
+
+	bool borderless() @property;
+	bool borderless(bool) @property;
+
+	bool maximized() @property;
+	bool maximized(bool value) @property;
+
+	bool minimized() @property;
+	bool minimized(bool value) @property;
+
+	bool hasFocus() @property;
+
+	void show(Window owner);
+	void hide();
+	void activate();
+	void close();
+
+	int getDisplayIndex();
+	float getDisplayDPI();
 }
+//endregion
 
 public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 {
+	//region Constructors
+	public this(string title, int width = 800, int height = 600)
+	{
+		auto bounds = Rectangle!int(SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height);
+		this(
+			title,
+			bounds,
+			maximized,
+			minimized,
+			resizable,
+			showInTaskBar,
+			borderless
+			);
+	}
+	
+	public this(string title, Rectangle!int bounds, bool maximized, bool minimized, bool resizable, bool showInTaskBar, bool borderless)
+	{
+		this(
+			title,
+			bounds,
+			SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN
+			| ((_maximized = maximized) == true ? SDL_WINDOW_MAXIMIZED : 0)
+			| ((_minimized = minimized) == true ? SDL_WINDOW_MINIMIZED : 0)
+			| ((_resizable = resizable) == true ? SDL_WINDOW_RESIZABLE : 0)
+			| ((_showInTaskBar = showInTaskBar) == false ? SDL_WINDOW_SKIP_TASKBAR : 0)
+			| ((_borderless = borderless) == true ? SDL_WINDOW_BORDERLESS : 0)
+			);
+	}
+	
+	protected this(string title, Rectangle!int bounds, SDL_WindowFlags windowFlags)
+	{
+		this._title = title;
+		this._bounds = bounds;
+		this._tid = thisTid;
+		
+		//Set defaults
+		import std.traits;
+		foreach(name; __traits(allMembers, typeof(this)))
+		{
+			foreach(uda; getUDAs!(mixin(name), DefaultValue))
+			{
+				mixin(uda.symbol) = mixin(name);
+			}
+		}
+		
+		sdlWindow = SDL_CreateWindow(
+			title.toStringz(),
+			bounds.x, bounds.y, bounds.width, bounds.height,
+			windowFlags
+		);
+		sdlWindow.enforceSDLNotNull("Could not create SDL window");
+
+		SDL_AddEventWatch(&eventWatcher, cast(void*)this);
+
+		Application.registerWindow(this);
+		Application.getSharedGLContext(sdlWindow);
+	}
+	//endregion
+
 	//region Properties
-	private SDL_Window* sdlWindow;
-	public SDL_Window* getSDLWindow()
+	private Tid _tid;
+	public Tid tid() @property
+	{
+		return _tid;
+	}
+
+	protected SDL_Window* sdlWindow;
+	public SDL_Window* getSDLWindow() nothrow @nogc
 	{
 		return sdlWindow;
 	}
 
-	private bool systemWindowInfoExist = false;
 	public SDL_SysWMinfo getSystemWindowInfo()
 	{
+		static systemWindowInfoExist = false;
 		static SDL_SysWMinfo systemWindowInfo;
-
+		if (disposed)
+			throw new ObjectDisposedException("Can not retrieve system window info from a disposed window.");
 		if (!systemWindowInfoExist)
 		{
 			SDL_VERSION(&systemWindowInfo.version_);
@@ -56,7 +158,40 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 		return systemWindowInfo;
 	}
 
-	private uint id = 0;
+	public void* getSystemWindow()
+	{
+		SDL_SysWMinfo sysWindowInfo = getSystemWindowInfo();
+		switch(sysWindowInfo.subsystem)
+		{
+			version(Windows)
+			{
+				case SDL_SYSWM_WINDOWS:
+					return sysWindowInfo.info.win.window;
+			}
+			version(Posix)
+			{
+				case SDL_SYSWM_X11:
+					return sysWindowInfo.info.x11.window;
+			}
+			version(linux)
+			{
+				case SDL_SYSWM_WAYLAND:
+					return sysWindowInfo.info.wl.surface;
+				case SDL_SYSWM_MIR:
+					return sysWindowInfo.info.mir.surface;
+			}
+			version(OSX)
+			{
+				case SDL_SYSWM_COCOA:
+					return sysWindowInfo.info.cocoa.window;
+			}
+			default:
+				throw new UnsupportedException("Getting window handle is not supported for this platform.");
+				//TODO: Implement support for various different platforms
+		}
+	}
+
+	protected uint id = 0;
 	public uint getSDLWindowID()
 	{
 		if (id == 0)
@@ -81,13 +216,13 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 		value.clamp(minSize, maxSize, !minSize.isEmpty, !maxSize.isEmpty);
 	}
 
-	private Rectangle!int _bounds;
+	protected Rectangle!int _bounds;
 	public Event!Window boundsChanged;
 	public Rectangle!int bounds() @property
 	{
 		return _bounds;
 	}
-	public void bounds(Rectangle!int value) @property
+	public Rectangle!int bounds(Rectangle!int value) @property
 	{
 		auto old = _bounds;
 		if (old.location != value.location)
@@ -101,6 +236,7 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 			_bounds.size = value.size;
 			SDL_SetWindowSize(sdlWindow, _bounds.width, _bounds.height);
 		}
+		return _bounds;
 	}
 
 	public Event!Window locationChanged;
@@ -108,7 +244,7 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 	{
 		return _bounds.location;
 	}
-	public void location(Point!int value) @property
+	public Point!int location(Point!int value) @property
 	{
 		auto old = _bounds.location;
 		if (old != value)
@@ -116,6 +252,7 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 			_bounds.location = value;
 			SDL_SetWindowPosition(sdlWindow, _bounds.x, _bounds.y);
 		}
+		return _bounds.location;
 	}
 
 	public Point!int getLocationNormalized()
@@ -130,7 +267,7 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 	{
 		return _bounds.size;
 	}
-	public void size(Size!int value) @property
+	public Size!int size(Size!int value) @property
 	{
 		clampSize(value);
 		auto old = _bounds.size;
@@ -139,15 +276,16 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 			_bounds.size = value;
 			SDL_SetWindowSize(sdlWindow, _bounds.width, _bounds.height);
 		}
+		return _bounds.size;
 	}
 
-	private Size!int _maxSize;
+	protected Size!int _maxSize;
 	public Event!Window maxSizeChanged;
 	public Size!int maxSize() @property
 	{
 		return _maxSize;
 	}
-	public void maxSize(Size!int value) @property
+	public Size!int maxSize(Size!int value) @property
 	{
 		value.clamp(minSize, typeof(value).zero, true, false);
 		auto old = _maxSize;
@@ -157,15 +295,16 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 			SDL_SetWindowMaximumSize(sdlWindow, _maxSize.width, _maxSize.height);
 			maxSizeChanged(this);
 		}
+		return _maxSize;
 	}
 
-	private Size!int _minSize;
+	protected Size!int _minSize;
 	public Event!Window minSizeChanged;
 	public Size!int minSize() @property
 	{
 		return _minSize;
 	}
-	public void minSize(Size!int value) @property
+	public Size!int minSize(Size!int value) @property
 	{
 		value.clamp(typeof(value).zero, maxSize, false, true);
 		auto old = _minSize;
@@ -175,6 +314,7 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 			SDL_SetWindowMinimumSize(sdlWindow, _minSize.width, _minSize.height);
 			minSizeChanged(this);
 		}
+		return _minSize;
 	}
 
 	protected float _opacity = 1.0f;
@@ -183,7 +323,7 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 	{
 		return _opacity;
 	}
-	public void opacity(float value) @property
+	public float opacity(float value) @property
 	{
 		import std.algorithm : clamp;
 		auto old = _opacity;
@@ -193,6 +333,7 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 			SDL_SetWindowOpacity(sdlWindow, _opacity);
 			opacityChanged(this);
 		}
+		return _opacity;
 	}
 
 	protected bool _resizable = true;
@@ -201,7 +342,7 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 	{
 		return _resizable;
 	}
-	public void resizable(bool value) @property
+	public bool resizable(bool value) @property
 	{
 		auto old = _resizable;
 		if (old != value)
@@ -210,6 +351,7 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 			SDL_SetWindowResizable(sdlWindow, _resizable);
 			resizableChanged(this);
 		}
+		return _resizable;
 	}
 
 	protected bool _borderless;
@@ -218,7 +360,7 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 	{
 		return _borderless;
 	}
-	public void borderless(bool value) @property
+	public bool borderless(bool value) @property
 	{
 		auto old = _borderless;
 		if (old != value)
@@ -227,6 +369,7 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 			SDL_SetWindowBordered(sdlWindow, !_borderless);
 			borderlessChanged(this);
 		}
+		return _borderless;
 	}
 
 	protected bool _maximized;
@@ -235,7 +378,7 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 	{
 		return _maximized;
 	}
-	public void maximized(bool value) @property
+	public bool maximized(bool value) @property
 	{
 		auto old = _maximized;
 		if (old != value)
@@ -246,6 +389,7 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 			else
 				SDL_RestoreWindow(sdlWindow);
 		}
+		return _maximized;
 	}
 
 	protected bool _minimized;
@@ -254,7 +398,7 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 	{
 		return _minimized;
 	}
-	public void minimized(bool value) @property
+	public bool minimized(bool value) @property
 	{
 		auto old = _minimized;
 		if (old != value)
@@ -265,6 +409,7 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 			else
 				SDL_RestoreWindow(sdlWindow);
 		}
+		return _minimized;
 	}
 
 	protected bool _showInTaskBar = true;
@@ -273,7 +418,7 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 	{
 		return _showInTaskBar;
 	}
-	public void showInTaskBar(bool value) @property
+	public bool showInTaskBar(bool value) @property
 	{
 		auto old = _showInTaskBar;
 		if (old != value)
@@ -283,6 +428,7 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 			//TODO: Implement
 			//showInTaskBarChanged(this);
 		}
+		return _showInTaskBar;
 	}
 
 	protected bool _visible;
@@ -291,7 +437,7 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 	{
 		return _visible;
 	}
-	public void visible(bool value) @property
+	public bool visible(bool value) @property
 	{
 		auto old = _visible;
 		if (old != value)
@@ -302,6 +448,7 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 			else
 				SDL_HideWindow(sdlWindow);
 		}
+		return _visible;
 	}
 
 	protected WindowStartPosition _startPosition = WindowStartPosition.centerParent;
@@ -309,9 +456,9 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 	{
 		return _startPosition;
 	}
-	public void startPosition(WindowStartPosition value) @property
+	public WindowStartPosition startPosition(WindowStartPosition value) @property
 	{
-		_startPosition = value;
+		return _startPosition = value;
 	}
 
 	protected string _title;
@@ -320,7 +467,7 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 	{
 		return _title;
 	}
-	public void title(string value) @property
+	public string title(string value) @property
 	{
 		auto old = _title;
 		if (old != value)
@@ -329,6 +476,13 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 			SDL_SetWindowTitle(sdlWindow, _title.toStringz());
 			titleChanged(this);
 		}
+		return _title;
+	}
+
+	version(Windows)
+	{
+		pragma(lib, "user32");
+		//pragma(lib, "kernel32");
 	}
 
 	protected Window _owner;
@@ -336,7 +490,7 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 	{
 		return _owner;
 	}
-	public void owner(Window value) @property
+	public Window owner(Window value) @property
 	{
 		auto systemWindowInfo = this.getSystemWindowInfo();
 		switch (systemWindowInfo.subsystem)
@@ -358,68 +512,69 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 			case SDL_SYSWM_X11:
 				SDL_SetWindowModalFor(sdlWindow, value.getSDLWindow()).enforceSDLEquals(0, "Could not adjust window owner.");
 				break;
+			case SDL_SYSWM_COCOA:
+				goto default;
 			default:
 				throw new NotImplementedException("Setting owner window is not implemented for this platform.");
 				//TODO: Implement support for various different platforms
 		}
+		return _owner;
+	}
+
+	@DefaultValue(_backColor.stringof)
+	public static vec4f default_BackColor = vec4f(0.25f, 0.25f, 0.25f, 1.00f);
+
+	protected vec4f _backColor;
+	public Event!Window backColorChanged;
+	public vec4f backColor()
+	{
+		return _backColor;
+	}
+	public vec4f backColor(vec4f value)
+	{
+		auto old = _backColor;
+		if (old !is value)
+		{
+			_backColor = value;
+			backColorChanged(this);
+		}
+		return _backColor;
 	}
 	
-	private int _suspendLayout = 0;
-	private vec4f _backColor;
-	
-	private Widget[] _widgets;
-	private Widget _activeWidget;
-	//endregion
-
-	//region Constructors
-	public this(string title, int width = 800, int height = 600)
+	protected Widget _widget;
+	public Event!Window widgetChanged;
+	public Widget widget()
 	{
-		auto bounds = Rectangle!int(SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height);
-		this(
-			title,
-			bounds,
-			maximized,
-			minimized,
-			resizable,
-			showInTaskBar,
-			borderless
-		);
+		return _widget;
+	}
+	public Widget widget(Widget value)
+	{
+		auto old = _widget;
+		if (old !is value)
+		{
+			_widget = value;
+			widgetChanged(this);
+		}
+		return _widget;
 	}
 	
-	public this(string title, Rectangle!int bounds, bool maximized, bool minimized, bool resizable, bool showInTaskBar, bool borderless)
+	/+protected int _layoutSuspend = 0;
+	public bool layoutSuspended() @property
 	{
-		this(
-			title,
-			bounds,
-			SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN
-			| ((_maximized = maximized) == true ? SDL_WINDOW_MAXIMIZED : 0)
-			| ((_minimized = minimized) == true ? SDL_WINDOW_MINIMIZED : 0)
-			| ((_resizable = resizable) == true ? SDL_WINDOW_RESIZABLE : 0)
-			| ((_showInTaskBar = showInTaskBar) == false ? SDL_WINDOW_SKIP_TASKBAR : 0)
-			| ((_borderless = borderless) == true ? SDL_WINDOW_BORDERLESS : 0)
-		);
+		return _layoutSuspend > 0;
 	}
 
-	protected this(string title, Rectangle!int bounds, SDL_WindowFlags windowFlags)
+	public auto suspendLayout()
 	{
-		this._title = title;
-		this._bounds = bounds;
-
-		sdlWindow = SDL_CreateWindow(
-			title.toStringz(),
-			bounds.x, bounds.y, bounds.width, bounds.height,
-			windowFlags
-		);
-		sdlWindow.enforceSDLNotNull("Could not create SDL window");
-
-		Application.registerWindow(this);
-		Application.getSharedGLContext(sdlWindow);
-	}
+		return rlock(_layoutSuspend);
+	}+/
 	//endregion
 
 	//region handleEvent
 	public bool handleEvent(ref SDL_Event event)
 	{
+		if (disposed)
+			throw new ObjectDisposedException("Window disposed.");
 		switch (event.type)
 		{
 			case SDL_WINDOWEVENT:
@@ -529,81 +684,33 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 		}
 	}
 
-	//region Functions
-	public Event!Window shownFirstTime;
-	private bool firstTimeShowing = true;
-	public void show(Window owner = null)
+	extern(C) private static int eventWatcher(void* data, SDL_Event* event)
 	{
-		if (owner !is null)
-			this.owner = owner;
-
-		if (firstTimeShowing)
+		Window _this = cast(Window)data;
+		if (event.type == SDL_WINDOWEVENT)
 		{
-			int x, y;
-			final switch (startPosition)
+			switch(event.window.event)
 			{
-				case WindowStartPosition.manual:
-					x = bounds.x;
-					y = bounds.y;
+				case SDL_WINDOWEVENT_EXPOSED:
+				case SDL_WINDOWEVENT_SIZE_CHANGED:
+				case SDL_WINDOWEVENT_MOVED:
+					if (thisTid == _this.tid)
+					{
+						SDL_Window* win = SDL_GetWindowFromID(event.window.windowID);
+						if (win == _this.getSDLWindow())
+							_this.handleEvent(*event);
+						return 0;
+					}
 					break;
-				case WindowStartPosition.centerScreen:
-					x = y = SDL_WINDOWPOS_CENTERED;
-					break;
-				case WindowStartPosition.centerParent:
-					if (owner is null)
-						goto case WindowStartPosition.centerScreen;
-					x = owner.bounds.x + (owner.bounds.width - this.bounds.width) / 2;
-					y = owner.bounds.y + (owner.bounds.height - this.bounds.height) / 2;
-					break;
-				case WindowStartPosition.undefined:
-					x = y = SDL_WINDOWPOS_UNDEFINED;
+				default:
 					break;
 			}
-			location = Point!int(x, y);
-			firstTimeShowing = false;
-			SDL_ShowWindow(sdlWindow);
-			shownFirstTime(this);
 		}
-		else
-			SDL_ShowWindow(sdlWindow);
-	}
-
-	public void hide()
-	{
-		SDL_HideWindow(sdlWindow);
-	}
-
-	public void activate()
-	{
-		SDL_RaiseWindow(sdlWindow);
-	}
-
-	public void close()
-	{
-		SDL_Event event = void;
-		event.type = SDL_WINDOWEVENT;
-		event.window.timestamp = SDL_GetTicks();
-		event.window.windowID = getSDLWindowID();
-		event.window.event = SDL_WINDOWEVENT_CLOSE;
-		event.window.data1 = event.window.data2 = 0;	//TODO: Maybe use data as close reason
-		SDL_PushEvent(&event);
-	}
-
-	public int getDisplayIndex()
-	{
-		return SDL_GetWindowDisplayIndex(sdlWindow);
-	}
-
-	public float getDisplayDPI()
-	{
-		float xdpi;
-		SDL_GetDisplayDPI(getDisplayIndex(), null, &xdpi, null)
-			.enforceSDLEquals(0, "Could not query display DPI.");
-		return xdpi;
+		return 1;
 	}
 	//endregion
 
-	//region onEvent(...) Functions
+	//region onEvent(...) functions
 	protected void onShown()
 	{
 		visibleChanged(this);
@@ -615,7 +722,7 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 	}
 
 	public Event!Window exposed;
-	protected void onExposed()
+	protected void onExposed(ref SDL_Event event)
 	{
 		exposed(this);
 		if (!_minimized)
@@ -711,79 +818,210 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 		hitTest(this);
 	}
 
-	public Event!(Window, SDL_KeyboardEvent) keyDown;
-	protected void onKeyDown(ref SDL_KeyboardEvent event)
+	public Event!(Window, SDL_KeyboardEvent*, bool*) keyDown;
+	protected bool onKeyDown(ref SDL_Event event)
 	{
-		keyDown(this, event);
+		bool handled = false;
+		if (widget !is null)
+			handled = widget.handleEvent(event);
+		if (!handled)
+			keyDown(this, &event.key, &handled);
+		return handled;
 	}
 
-	public Event!(Window, SDL_KeyboardEvent) keyUp;
-	protected void onKeyUp(ref SDL_KeyboardEvent event)
+	public Event!(Window, SDL_KeyboardEvent*, bool*) keyUp;
+	protected bool onKeyUp(ref SDL_Event event)
 	{
-		keyUp(this, event);
+		bool handled = false;
+		if (widget !is null)
+			handled = widget.handleEvent(event);
+		if (!handled)
+			keyUp(this, &event.key, &handled);
+		return handled;
 	}
 
-	public Event!(Window, SDL_TextEditingEvent) textEditing;
-	protected void onTextEditing(ref SDL_TextEditingEvent event)
+	public Event!(Window, SDL_TextEditingEvent*, bool*) textEditing;
+	protected bool onTextEditing(ref SDL_Event event)
 	{
-		auto str = fromStringz(event.text.ptr).idup();
-		textEditing(this, event);
+		bool handled = false;
+		if (widget !is null)
+			handled = widget.handleEvent(event);
+		if (!handled)
+			textEditing(this, &event.edit, &handled);
+		return handled;
 	}
 
-	public Event!(Window, SDL_TextInputEvent) textInput;
-	protected void onTextInput(ref SDL_TextInputEvent event)
+	public Event!(Window, SDL_TextInputEvent*, bool*) textInput;
+	protected bool onTextInput(ref SDL_Event event)
 	{
-		auto str = fromStringz(event.text.ptr).idup();
-		textInput(this, event);
+		bool handled = false;
+		if (widget !is null)
+			handled = widget.handleEvent(event);
+		if (!handled)
+			textInput(this, &event.text, &handled);
+		return handled;
 	}
 
-	public Event!(Window, SDL_MouseMotionEvent) mouseMove;
-	protected void onMouseMove(ref SDL_MouseMotionEvent event)
+	public Event!(Window, SDL_MouseMotionEvent*, bool*) mouseMove;
+	protected bool onMouseMove(ref SDL_Event event)
 	{
-		mouseMove(this, event);
+		bool handled = false;
+		if (widget !is null)
+			handled = widget.handleEvent(event);
+		if (!handled)
+			mouseMove(this, &event.motion, &handled);
+		return handled;
 	}
 
-	public Event!(Window, SDL_MouseButtonEvent) mouseDown;
-	protected void onMouseDown(ref SDL_MouseButtonEvent event)
+	public Event!(Window, SDL_MouseButtonEvent*, bool*) mouseDown;
+	protected bool onMouseDown(ref SDL_Event event)
 	{
-		mouseDown(this, event);
+		bool handled = false;
+		if (widget !is null)
+			handled = widget.handleEvent(event);
+		if (!handled)
+			mouseDown(this, &event.button, &handled);
+		return handled;
 	}
 
-	public Event!(Window, SDL_MouseButtonEvent) mouseUp;
-	protected void onMouseUp(ref SDL_MouseButtonEvent event)
+	public Event!(Window, SDL_MouseButtonEvent*, bool*) mouseUp;
+	protected bool onMouseUp(ref SDL_Event event)
 	{
-		mouseUp(this, event);
+		bool handled = false;
+		if (widget !is null)
+			handled = widget.handleEvent(event);
+		if (!handled)
+			mouseUp(this, &event.button, &handled);
+		return handled;
 	}
 
-	public Event!(Window, SDL_MouseWheelEvent) mouseWheel;
-	protected void onMouseWheel(ref SDL_MouseWheelEvent event)
+	public Event!(Window, SDL_MouseWheelEvent*, bool*) mouseWheel;
+	protected bool onMouseWheel(ref SDL_Event event)
 	{
-		mouseWheel(this, event);
+		bool handled = false;
+		if (widget !is null)
+			handled = widget.handleEvent(event);
+		if (!handled)
+			mouseWheel(this, &event.wheel, &handled);
+		return handled;
 	}
 
-	public Event!(Window, string) textDrop;
-	protected void onTextDrop(string text)
+	public Event!(Window, string, bool*) textDrop;
+	protected bool onTextDrop(string text)
 	{
-		textDrop(this, text);
+		bool handled = false;
+		if (widget !is null)
+			handled = widget.handleTextDrop(text);
+		if (!handled)
+			textDrop(this, text, &handled);
+		return handled;
 	}
 
-	public Event!(Window, string[]) fileDrop;
-	protected void onFileDrop(string[] files)
+	public Event!(Window, string[], bool*) fileDrop;
+	protected bool onFileDrop(string[] files)
 	{
-		fileDrop(this, files);
+		bool handled = false;
+		if (widget !is null)
+			handled = widget.handleFileDrop(files);
+		if (!handled)
+			fileDrop(this, files, &handled);
+		return handled;
 	}
 
 	public Event!Window draw;
 	protected void onDraw()
 	{
 		SDL_GL_MakeCurrent(sdlWindow, Application.getSharedGLContext(sdlWindow));
-		glViewport(0, 0, _bounds.width, _bounds.height);
-		glScissor(0, 0, _bounds.width, _bounds.height);
-		glClearColor(0.5f, 0.5f, 1f, 1f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		int w, h;
+		SDL_GL_GetDrawableSize(getSDLWindow(), &w, &h);
+		auto viewport = Rectangle!int(0, 0, w, h);
+		glViewport(0, 0, w, h);
+		glScissor(0, 0, w, h);
+		glClearColor(backColor.r, backColor.g, backColor.b, backColor.a);
+		glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+		draw(this);
+		{
+			if (widget !is null && !widget.disposed)
+				widget.handleDraw(viewport, getSDLWindow());
+		}
 		SDL_GL_SwapWindow(sdlWindow);
 	}
 	//endregion
+
+	//region Functions
+	public Event!Window appeared;
+	public void show(Window owner = null)
+	{
+		static bool firstTimeShowing = true;
+		
+		if (owner !is null)
+			this.owner = owner;
+		
+		if (firstTimeShowing)
+		{
+			int x, y;
+			final switch (startPosition)
+			{
+				case WindowStartPosition.manual:
+					x = bounds.x;
+					y = bounds.y;
+					break;
+				case WindowStartPosition.centerScreen:
+					x = y = SDL_WINDOWPOS_CENTERED;
+					break;
+				case WindowStartPosition.centerParent:
+					if (owner is null)
+						goto case WindowStartPosition.centerScreen;
+					x = owner.bounds.x + (owner.bounds.width - this.bounds.width) / 2;
+					y = owner.bounds.y + (owner.bounds.height - this.bounds.height) / 2;
+					break;
+				case WindowStartPosition.undefined:
+					x = y = SDL_WINDOWPOS_UNDEFINED;
+					break;
+			}
+			location = Point!int(x, y);
+			firstTimeShowing = false;
+			SDL_ShowWindow(sdlWindow);
+			appeared(this);
+		}
+		else
+			SDL_ShowWindow(sdlWindow);
+	}
+	
+	public void hide()
+	{
+		SDL_HideWindow(sdlWindow);
+	}
+	
+	public void activate()
+	{
+		SDL_RaiseWindow(sdlWindow);
+	}
+	
+	public void close()
+	{
+		SDL_Event event = void;
+		event.type = SDL_WINDOWEVENT;
+		event.window.timestamp = SDL_GetTicks();
+		event.window.windowID = getSDLWindowID();
+		event.window.event = SDL_WINDOWEVENT_CLOSE;
+		event.window.data1 = event.window.data2 = 0;	//TODO: Maybe use data as close reason
+		SDL_PushEvent(&event);
+	}
+	
+	public int getDisplayIndex()
+	{
+		return SDL_GetWindowDisplayIndex(sdlWindow);
+	}
+	
+	public float getDisplayDPI()
+	{
+		float xdpi;
+		SDL_GetDisplayDPI(getDisplayIndex(), null, &xdpi, null)
+			.enforceSDLEquals(0, "Could not query display DPI.");
+		return xdpi;
+	}
+//endregion
 
 	//region IDisposable implementation
 	protected bool _disposed = false; //To detect redundant calls
@@ -792,21 +1030,24 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 		return _disposed;
 	}
 	
-	protected void Dispose(bool disposing)
+	protected void dispose(bool disposing)
 	{
 		if (!_disposed)
 		{
 			if (disposing)
 			{
-				//TODO: dispose managed state (managed objects).
+				//Dispose managed state (managed objects).
+				if (widget !is null)
+					widget.dispose();
 			}
 
 			//Free unmanaged resources (unmanaged objects), set large fields to null.
+			SDL_DelEventWatch(&eventWatcher, cast(void*)this);
+
 			if (sdlWindow !is null)
 			{
 				SDL_DestroyWindow(sdlWindow);
 				sdlWindow = null;
-				systemWindowInfoExist = false;
 			}
 			
 			_disposed = true;
@@ -817,15 +1058,15 @@ public class Window : IWindow, IWidgetContainer, IEventReceiver, IDisposable
 	public ~this()
 	{
 		//Do not change this code. Put cleanup code in Dispose(bool disposing) above.
-		Dispose(false);
+		dispose(false);
 	}
 	
 	//This code added to correctly implement the disposable pattern.
-	public void Dispose()
+	public void dispose()
 	{
 		import core.memory : GC;
 		//Do not change this code. Put cleanup code in Dispose(bool disposing) above.
-		Dispose(true);
+		dispose(true);
 		//Uncomment the following line if the destructor is overridden above.
 		GC.clrAttr(cast(void*)this, GC.BlkAttr.FINALIZE);
 		//FIXME: D runtime currently doesn't give a shit about GC.BlkAttr.FINALIZE so it's actually pointless
