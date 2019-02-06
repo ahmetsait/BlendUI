@@ -25,9 +25,6 @@ import blendui.util;
 public static class Application
 {
 static:
-	//Common DPI values: 96 (1.00), 120 (1.25), 144 (1.50), 168 (1.75), 192 (2.00)
-	public immutable float designDPI = 120f;
-	public float renderDPI = designDPI;
 
 	private bool running = false, _glDebugEnabled = false;
 	
